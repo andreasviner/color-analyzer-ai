@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI architectures · Color Polygraph · Andreas Lindeman</title>
+  <meta name="description" content="Leaderboard of the model architectures I have re-implemented on the 2020 color polygraph dataset: stacked gradient boosting, transformer, BiGRU, LSTM, and linear baselines." />
+  <link rel="canonical" href="https://ai.andreaslindeman.com/color-polygraph/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="icon" type="image/png" href="../icon.png" />
+  <style>
+    .lb-wrap {
+      margin: 8px 0 16px;
+      overflow-x: auto;
+      border: 1px solid var(--hairline);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+    .lb-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text);
+      min-width: 720px;
+    }
+    .lb-table thead th {
+      text-align: left;
+      padding: 14px 16px;
+      font-weight: 500;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      border-bottom: 1px solid var(--hairline);
+      background: rgba(255, 255, 255, 0.02);
+      white-space: nowrap;
+    }
+    .lb-table tbody td {
+      padding: 14px 16px;
+      border-bottom: 1px dashed var(--hairline);
+      vertical-align: top;
+      line-height: 1.55;
+    }
+    .lb-table tbody tr:last-child td { border-bottom: none; }
+    .lb-table tbody tr:hover td { background: rgba(255, 255, 255, 0.015); }
+    .lb-arch {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 16px;
+      color: var(--text);
+      font-variation-settings: "opsz" 36;
+    }
+    .lb-sub {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-mute);
+      letter-spacing: 0.02em;
+      font-style: normal;
+    }
+    .lb-score {
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+    .lb-score-best { color: var(--hobby); }
+    .lb-na {
+      color: var(--text-dim);
+    }
+    .lb-folder a {
+      color: var(--text-mute);
+      border-bottom: 1px dotted var(--hairline);
+      transition: color .2s, border-color .2s;
+    }
+    .lb-folder a:hover {
+      color: var(--text);
+      border-color: var(--text-mute);
+    }
+    .lb-note {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-mute);
+      letter-spacing: 0.02em;
+      margin-top: 8px;
+    }
+    .lb-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-mute);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+    .lb-legend .dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      vertical-align: 1px;
+      margin-right: 6px;
+      background: var(--hobby);
+    }
+    .lb-method-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 18px;
+    }
+    .lb-method-list li {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+      letter-spacing: 0.02em;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--hairline);
+    }
+    .lb-method-list li:last-child { border-bottom: none; }
+    .lb-method-list strong {
+      color: var(--text-mute);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 10px;
+      display: inline-block;
+      min-width: 100px;
+      margin-right: 8px;
+    }
+    @media (max-width: 720px) {
+      .lb-table { font-size: 12px; }
+      .lb-table thead th, .lb-table tbody td { padding: 10px 12px; }
+      .lb-arch { font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="site-nav" aria-label="Primary">
+    <a href="https://andreaslindeman.com/" class="brand">
+      <span class="brand-mark">AL</span>
+      <span class="brand-name">Andreas Lindeman</span>
+    </a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links-list" aria-label="Open menu">
+      <span class="nav-toggle-bar" aria-hidden="true"></span>
+      <span class="nav-toggle-bar" aria-hidden="true"></span>
+      <span class="nav-toggle-bar" aria-hidden="true"></span>
+    </button>
+    <ul id="nav-links-list" class="nav-links">
+      <li><a href="https://andreaslindeman.com/#about">About</a></li>
+      <li><a href="https://andreaslindeman.com/#timeline">Timeline</a></li>
+      <li><a href="https://andreaslindeman.com/#stack">Stack</a></li>
+      <li><a href="https://andreaslindeman.com/#contact">Contact</a></li>
+    </ul>
+    <a class="lang-switch" data-lang-base="https://andreaslindeman.no" href="https://andreaslindeman.no/" hreflang="no" aria-label="Switch to Norwegian">
+      <svg class="lang-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/></svg>
+      <span class="lang-pair"><span class="lang-current">EN</span><span class="lang-sep" aria-hidden="true">/</span><span class="lang-target">NO</span></span>
+    </a>
+  </nav>
+  <script>
+    (function(){
+      var s=document.querySelector('.lang-switch');
+      if(s&&s.dataset.langBase)s.href=s.dataset.langBase+location.pathname+location.search+location.hash;
+      var nav=document.querySelector('.site-nav'), btn=document.querySelector('.nav-toggle');
+      if(btn&&nav){
+        function closeMenu(){
+          nav.classList.remove('is-open');
+          btn.setAttribute('aria-expanded','false');
+          btn.setAttribute('aria-label','Open menu');
+        }
+        btn.addEventListener('click',function(e){
+          e.stopPropagation();
+          var open=nav.classList.toggle('is-open');
+          btn.setAttribute('aria-expanded',open?'true':'false');
+          btn.setAttribute('aria-label',open?'Close menu':'Open menu');
+        });
+        nav.querySelectorAll('.nav-links a').forEach(function(a){
+          a.addEventListener('click',closeMenu);
+        });
+        document.addEventListener('click',function(e){
+          if(nav.classList.contains('is-open')&&!nav.contains(e.target))closeMenu();
+        });
+        document.addEventListener('keydown',function(e){
+          if(e.key==='Escape'&&nav.classList.contains('is-open'))closeMenu();
+        });
+      }
+    })();
+  </script>
+
+  <main class="project-page">
+    <a href="https://andreaslindeman.com/projects/color-polygraph" class="project-back">Back to Color Polygraph</a>
+
+    <div class="project-meta-row">
+      <span class="cat-tag"><span class="cat-swatch hobby"></span> hobby</span>
+      <span class="sep"></span>
+      <span>2026 re-implementations</span>
+      <span class="sep"></span>
+      <span class="status-tag ongoing">Ongoing</span>
+    </div>
+
+    <h1 class="project-title">AI <em>architectures</em></h1>
+
+    <p class="project-lede">
+      Six years after the original color polygraph, I keep rebuilding the model
+      to see what the same 6,710 sessions look like under different architectures.
+      This page tracks them. Each row is one architecture, each architecture lives
+      in its own folder under the project, each was trained with the same 5-fold
+      cross-validation so the numbers are comparable.
+    </p>
+
+    <section class="project-section">
+      <h2>Leaderboard</h2>
+
+      <p class="lb-legend">
+        <span><span class="dot"></span> best score per column</span>
+        <span>gender = ROC-AUC, higher is better</span>
+        <span>age / mood = MAE, lower is better</span>
+      </p>
+
+      <div class="lb-wrap">
+        <table class="lb-table">
+          <thead>
+            <tr>
+              <th>Architecture</th>
+              <th>Gender AUC</th>
+              <th>Age MAE</th>
+              <th>Mood MAE</th>
+              <th>Notes</th>
+              <th>Folder</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <span class="lb-arch">Stacked GBM ensemble</span>
+                <span class="lb-sub">LightGBM + XGBoost + CatBoost + HistGB + ExtraTrees, ridge / logistic meta-learner over top-K OOFs per family</span>
+              </td>
+              <td class="lb-score lb-score-best">0.875</td>
+              <td class="lb-score lb-na">pending</td>
+              <td class="lb-score lb-na">pending</td>
+              <td>440+ engineered features per session, ~550 trials random search across the five families</td>
+              <td class="lb-folder">
+                <a href="https://github.com/andreasviner/portfolio/tree/main/ai/color-polygraph/training/gbm-stack" target="_blank" rel="noopener">gbm-stack/</a>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="lb-arch">LightGBM random search</span>
+                <span class="lb-sub">single-family LightGBM, 30-trial random search, no stacking</span>
+              </td>
+              <td class="lb-score lb-na">pending rerun</td>
+              <td class="lb-score lb-na">pending rerun</td>
+              <td class="lb-score lb-na">pending rerun</td>
+              <td>The smaller cousin of gbm-stack: same feature set, one family</td>
+              <td class="lb-folder">
+                <a href="https://github.com/andreasviner/portfolio/tree/main/ai/color-polygraph/training/lgb-search" target="_blank" rel="noopener">lgb-search/</a>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="lb-arch">Baselines</span>
+                <span class="lb-sub">logistic / ridge, sklearn MLP, HistGradientBoosting, single LGB, single XGB</span>
+              </td>
+              <td class="lb-score lb-na">pending rerun</td>
+              <td class="lb-score lb-na">pending rerun</td>
+              <td class="lb-score lb-na">pending rerun</td>
+              <td>Sanity check that the fancy models are doing real work</td>
+              <td class="lb-folder">
+                <a href="https://github.com/andreasviner/portfolio/tree/main/ai/color-polygraph/training/baselines" target="_blank" rel="noopener">baselines/</a>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="lb-arch">Transformer</span>
+                <span class="lb-sub">d_model=64, 3 encoder layers, 4 heads, [CLS] token, side features fused after the encoder</span>
+              </td>
+              <td class="lb-score">0.797</td>
+              <td class="lb-score">8.88</td>
+              <td class="lb-score">11.29</td>
+              <td>Reads raw per-question color picks + timings as a sequence of 21 steps</td>
+              <td class="lb-folder">
+                <a href="https://github.com/andreasviner/portfolio/tree/main/ai/color-polygraph/training/transformer" target="_blank" rel="noopener">transformer/</a>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="lb-arch">BiGRU</span>
+                <span class="lb-sub">d_model=64, hidden=64 per direction, 2 layers</span>
+              </td>
+              <td class="lb-score lb-na">pending</td>
+              <td class="lb-score lb-na">pending</td>
+              <td class="lb-score lb-na">pending</td>
+              <td>Cheaper sibling of the transformer; not yet measured under the new pipeline</td>
+              <td class="lb-folder">
+                <a href="https://github.com/andreasviner/portfolio/tree/main/ai/color-polygraph/training/gru" target="_blank" rel="noopener">gru/</a>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="lb-arch">LSTM</span>
+                <span class="lb-sub">hidden=48, 1 layer, dropout 0.4</span>
+              </td>
+              <td class="lb-score">0.781</td>
+              <td class="lb-score lb-score-best">8.64</td>
+              <td class="lb-score lb-score-best">11.18</td>
+              <td>Smallest sequence model on the board. Loses to the transformer on gender, edges it on mood</td>
+              <td class="lb-folder">
+                <a href="https://github.com/andreasviner/portfolio/tree/main/ai/color-polygraph/training/seq" target="_blank" rel="noopener">seq/</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="lb-note">
+        Numbers refresh whenever an architecture is re-run. "Pending" means the current
+        re-implementation has not finished a clean 5-fold CV under the shared feature
+        pipeline yet.
+      </p>
+    </section>
+
+    <section class="project-section">
+      <h2>Methodology</h2>
+      <ul class="lb-method-list">
+        <li><strong>Dataset</strong>6,710 cleaned sessions, the same export the 2020 deep-dive page uses</li>
+        <li><strong>Targets</strong>gender (binary), age (regression, 6 to 68), mood (regression, 0 = happy, 60 = glum)</li>
+        <li><strong>Validation</strong>5-fold cross-validation, StratifiedKFold for gender, KFold for age and mood</li>
+        <li><strong>Metric</strong>ROC-AUC for gender, mean absolute error for the two regressions</li>
+        <li><strong>Seed</strong>42 everywhere</li>
+        <li><strong>Features</strong>Tree models use the 441-feature engineered vector (features.py). Sequence models read the raw 21-step per-question stream so they can learn their own representation.</li>
+      </ul>
+    </section>
+
+    <section class="project-section">
+      <h2>Why so many architectures</h2>
+      <p>
+        Tabular gradient boosting wins almost every time on small structured data,
+        and the color polygraph is small structured data. The transformer and the
+        recurrent models are there to test whether the per-question <em>order</em>
+        and timing carry signal that the engineered features lose. So far the
+        sequence models match the trees on age and mood but lose meaningful ground
+        on gender, suggesting the engineered features still capture most of what
+        matters for the binary head.
+      </p>
+      <p>
+        The baselines row exists for one reason only: to keep the rest of the
+        leaderboard honest. If a logistic regression gets within a percentage
+        point of the stacked ensemble, the ensemble is not earning its keep.
+      </p>
+    </section>
+
+    <section class="project-section">
+      <h2>Project links</h2>
+      <div class="project-links">
+        <a href="https://github.com/andreasviner/portfolio/tree/main/ai/color-polygraph/training" target="_blank" rel="noopener">All architectures on GitHub</a>
+        <a href="https://github.com/andreasviner/portfolio/blob/main/ai/color-polygraph/training/features.py" target="_blank" rel="noopener">Feature engineering pipeline (features.py)</a>
+        <a href="https://github.com/andreasviner/portfolio/blob/main/main/projects_data/2020-color-polygraph/new_code/treat_data.py" target="_blank" rel="noopener">Data cleaner (treat_data.py)</a>
+      </div>
+    </section>
+
+    <a href="https://andreaslindeman.com/projects/color-polygraph" class="project-back">Back to Color Polygraph</a>
+  </main>
+
+  <footer class="site-footer">
+    <span>© <span id="year"></span> Andreas Lindeman</span>
+    <span class="footer-meta">Built by hand · No frameworks · Hosted on GitHub Pages</span>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

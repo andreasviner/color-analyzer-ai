@@ -1,0 +1,9 @@
+{
+  "stacked_auc": 0.8645667884079585,
+  "stacked_acc_at_0.5": 0.797317436661699,
+  "stacked_acc_tuned": 0.797317436661699,
+  "stacked_threshold": 0.4725000000000001,
+  "stacked_f1": 0.8351914687348522,
+  "n_base_models_in_stack": 2,
+  "best_lgb_auc": 0.8706392041701285
+}
