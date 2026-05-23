@@ -9,7 +9,7 @@ compatibility_flags = ["python_workers"]
 [[d1_databases]]
 binding = "DB"
 database_name = "color-polygraph"
-database_id = "REPLACE-WITH-D1-ID-FROM-WRANGLER-CREATE"
+database_id = "7cb35d67-48f4-47e2-8755-1393e20cbde6"
 
 # Public configuration. Add any extra static origins (comma-separated) you
 # want to allow CORS from.
