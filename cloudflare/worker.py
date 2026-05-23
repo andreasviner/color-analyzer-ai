@@ -309,7 +309,7 @@ async def on_fetch(request, env, ctx=None):
     if path.startswith("/color-polygraph/survey/") and method == "POST":
         parts = path.strip("/").split("/")
         if len(parts) == 4:
-            _, survey_id, step = parts
+            _, _, survey_id, step = parts
             if step == "gender":
                 return await _handle_gender_confirm(request, env, survey_id)
             if step == "mood":
