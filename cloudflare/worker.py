@@ -4,21 +4,21 @@ Cloudflare Workers Python entrypoint for the Color Polygraph survey.
 Four endpoints, all under `https://api.andreaslindeman.com` (or whatever route
 the survey.html `API_BASE` points at):
 
-    POST /survey
+    POST /color-polygraph/survey
         Body: raw survey payload + client metadata.
         Saves the row to D1, computes the three feature vectors server-side,
         attaches IP hash + Cloudflare geo, returns `{id, features}` so the
         browser can run gender inference first.
 
-    POST /survey/:id/gender
+    POST /color-polygraph/survey/:id/gender
         Body: {pred_prob, pred_label, confirmed_label}
         Saves the gender prediction + user's truth. Returns {ok}.
 
-    POST /survey/:id/mood
+    POST /color-polygraph/survey/:id/mood
         Body: {pred_value, confirmed_value}
         Same shape, for mood.
 
-    POST /survey/:id/age
+    POST /color-polygraph/survey/:id/age
         Body: {pred_value, confirmed_value}
         Final step. Marks the row as completed.
 
@@ -116,7 +116,7 @@ def _get(d, key, default=None):
     return v if v is not None else default
 
 
-# ---------- /survey ----------
+# ---------- /color-polygraph/survey ----------
 
 async def _handle_submit(request, env):
     try:
@@ -189,7 +189,7 @@ async def _handle_submit(request, env):
     return _json_response({"id": survey_id, "features": features}, request, env)
 
 
-# ---------- /survey/:id/{gender,mood,age} ----------
+# ---------- /color-polygraph/survey/:id/{gender,mood,age} ----------
 
 async def _handle_gender_confirm(request, env, survey_id):
     try:
@@ -302,11 +302,11 @@ async def on_fetch(request, env, ctx=None):
     if method == "OPTIONS":
         return Response("", status=204, headers=_cors_headers(request, env))
 
-    if path == "/survey" and method == "POST":
+    if path == "/color-polygraph/survey" and method == "POST":
         return await _handle_submit(request, env)
 
-    # /survey/{id}/{step}
-    if path.startswith("/survey/") and method == "POST":
+    # /color-polygraph/survey/{id}/{step}
+    if path.startswith("/color-polygraph/survey/") and method == "POST":
         parts = path.strip("/").split("/")
         if len(parts) == 3:
             _, survey_id, step = parts
