@@ -1,4 +1,5 @@
-name = "color-polygraph-ai-api"
+name = 'color-analyzer-ai-api'
+
 main = "worker.py"
 compatibility_date = "2025-05-01"
 compatibility_flags = ["python_workers"]
