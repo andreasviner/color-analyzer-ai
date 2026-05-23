@@ -54,7 +54,7 @@ from features import compute_features, validate_payload
 
 # Set ALLOWED_ORIGINS via wrangler.toml [vars] (comma-separated) or fall back
 # to a sensible default for the portfolio site.
-DEFAULT_ALLOWED = "https://andreaslindeman.com,https://andreaslindeman.no,https://ai.andreaslindeman.com"
+DEFAULT_ALLOWED = "https://andreaslindeman.com,https://andreaslindeman.no,https://ai.andreaslindeman.com,https://ai.andreaslindeman.no"
 
 
 def _allowed_origin(request, env) -> str:

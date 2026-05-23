@@ -15,7 +15,7 @@ database_id = "7cb35d67-48f4-47e2-8755-1393e20cbde6"
 # Public configuration. Add any extra static origins (comma-separated) you
 # want to allow CORS from.
 [vars]
-ALLOWED_ORIGINS = "https://andreaslindeman.com,https://andreaslindeman.no,https://ai.andreaslindeman.com"
+ALLOWED_ORIGINS = "https://andreaslindeman.com,https://andreaslindeman.no,https://ai.andreaslindeman.com,https://ai.andreaslindeman.no"
 
 # IP_HASH_SALT must be set as a secret, not in vars:
 #   wrangler secret put IP_HASH_SALT
