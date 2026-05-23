@@ -1,0 +1,68 @@
+{
+  "n_features_combined": 474,
+  "n_features_extra": 33,
+  "gender": {
+    "combined_auc": 0.8779656090636587,
+    "baseline_auc": 0.876
+  },
+  "age": {
+    "combined_mae": 6.920828819274902,
+    "baseline_mae": 6.95
+  },
+  "mood": {
+    "combined_mae": 8.866129875183105,
+    "baseline_mae": 8.85
+  },
+  "top_new_features": [
+    {
+      "rank": 1,
+      "name": "r1_lab_b_std",
+      "gain": 10689.015921838582
+    },
+    {
+      "rank": 3,
+      "name": "r1_to_girl_proto_mean",
+      "gain": 3234.0119356662035
+    },
+    {
+      "rank": 4,
+      "name": "r1_relative_decisive_mean",
+      "gain": 3102.3288610875607
+    },
+    {
+      "rank": 10,
+      "name": "off_lab_b_std",
+      "gain": 996.6063282564282
+    },
+    {
+      "rank": 17,
+      "name": "r1_relative_decisive_std",
+      "gain": 660.8845798447728
+    },
+    {
+      "rank": 20,
+      "name": "r1_lab_L_mean",
+      "gain": 618.1539848744869
+    },
+    {
+      "rank": 57,
+      "name": "r1_offered_diversity_mean",
+      "gain": 405.1381359696388
+    },
+    {
+      "rank": 71,
+      "name": "off_lab_a_mean",
+      "gain": 379.51155235618353
+    },
+    {
+      "rank": 77,
+      "name": "r1_offered_diversity_std",
+      "gain": 373.15035033226013
+    },
+    {
+      "rank": 82,
+      "name": "r1_lab_L_std",
+      "gain": 364.1306522861123
+    }
+  ]
+}

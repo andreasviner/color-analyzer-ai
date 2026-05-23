@@ -589,3 +589,172 @@
 [14:11:10]   trial  26/150  AUC=0.8623  (463.0s, elapsed 184.4m, eta 879.4m)
 [14:15:37]   trial  27/150  AUC=0.8665  (266.3s, elapsed 188.8m, eta 860.2m)
 [14:17:08]   trial  28/150  AUC=0.8584  (91.1s, elapsed 190.3m, eta 829.4m)
+[17:08:16] Started at 2026-05-22T17:08:16.189484
+[17:08:16] Python 3.12.4, lightgbm 4.6.0, xgboost 2.1.4, catboost installed
+[17:08:16] Targets:  ['gender', 'age', 'mood']
+[17:08:16] Families: ['lgb', 'xgb', 'hgb', 'et']
+[17:08:16] Trials:   lgb=40 xgb=30 cat=80 hgb=20 et=12
+[17:08:16] Top-K stack: lgb=5 xgb=4 cat=4 hgb=3 et=2
+[17:08:16] Resumable mode: True
+[17:08:16] X: (6710, 441)  gender boys/girls=2758/3952  age mean=20.8  mood mean=18.1
+[17:08:16] === skipping gender: C:\Users\andre\Documents\portfolio_private\ai\color-polygraph\training\overnight_out\summary_gender.json exists ===
+[17:08:16] 
+############# TARGET: AGE #############
+[17:08:16] --- LGB search on age: 40 trials ---
+[17:08:39]   trial   1/40  MAE=7.0620  (23.1s, elapsed 0.4m, eta 15.0m)  *
+[17:09:32]   trial   2/40  MAE=6.9990  (53.2s, elapsed 1.3m, eta 24.1m)  *
+[17:12:40]   trial   3/40  MAE=6.8866  (188.0s, elapsed 4.4m, eta 54.3m)  *
+[17:15:44]   trial   4/40  MAE=6.9287  (183.8s, elapsed 7.5m, eta 67.2m)
+[17:18:47]   trial   5/40  MAE=6.8686  (183.0s, elapsed 10.5m, eta 73.6m)  *
+[17:21:50]   trial   6/40  MAE=7.0104  (182.7s, elapsed 13.6m, eta 76.9m)
+[17:25:09]   trial   7/40  MAE=6.8517  (199.5s, elapsed 16.9m, eta 79.6m)  *
+[17:30:36]   trial   8/40  MAE=7.0356  (327.2s, elapsed 22.3m, eta 89.4m)
+[17:48:22]   trial   9/40  MAE=6.8529  (1066.0s, elapsed 40.1m, eta 138.2m)
+[18:01:07]   trial  10/40  MAE=6.8974  (764.7s, elapsed 52.9m, eta 158.6m)
+[18:15:12]   trial  11/40  MAE=6.8795  (845.1s, elapsed 66.9m, eta 176.5m)
+[18:18:14]   trial  12/40  MAE=7.0526  (181.5s, elapsed 70.0m, eta 163.3m)
+[18:23:15]   trial  13/40  MAE=6.7406  (300.9s, elapsed 75.0m, eta 155.7m)  *
+[18:27:03]   trial  14/40  MAE=6.8454  (227.8s, elapsed 78.8m, eta 146.3m)
+[18:29:30]   trial  15/40  MAE=6.8697  (147.0s, elapsed 81.2m, eta 135.4m)
+[18:30:31]   trial  16/40  MAE=6.9809  (61.7s, elapsed 82.3m, eta 123.4m)
+[18:30:59]   trial  17/40  MAE=6.9807  (27.4s, elapsed 82.7m, eta 111.9m)
+[18:32:16]   trial  18/40  MAE=6.7927  (77.4s, elapsed 84.0m, eta 102.7m)
+[18:32:51]   trial  19/40  MAE=6.8607  (35.1s, elapsed 84.6m, eta 93.5m)
+[18:33:26]   trial  20/40  MAE=7.0036  (35.2s, elapsed 85.2m, eta 85.2m)
+[18:34:35]   trial  21/40  MAE=6.6329  (68.8s, elapsed 86.3m, eta 78.1m)  *
+[18:36:14]   trial  22/40  MAE=6.6778  (98.4s, elapsed 88.0m, eta 72.0m)
+[18:37:15]   trial  23/40  MAE=6.8795  (61.1s, elapsed 89.0m, eta 65.8m)
+[18:37:27]   trial  24/40  MAE=7.0521  (12.4s, elapsed 89.2m, eta 59.5m)
+[18:37:48]   trial  25/40  MAE=6.9288  (21.3s, elapsed 89.5m, eta 53.7m)
+[18:38:05]   trial  26/40  MAE=6.8594  (17.1s, elapsed 89.8m, eta 48.4m)
+[18:38:46]   trial  27/40  MAE=6.8400  (40.4s, elapsed 90.5m, eta 43.6m)
+[18:39:07]   trial  28/40  MAE=6.8805  (21.2s, elapsed 90.9m, eta 38.9m)
+[18:40:05]   trial  29/40  MAE=6.8411  (58.3s, elapsed 91.8m, eta 34.8m)
+[18:40:22]   trial  30/40  MAE=7.0340  (17.0s, elapsed 92.1m, eta 30.7m)
+[18:40:32]   trial  31/40  MAE=7.1121  (9.3s, elapsed 92.3m, eta 26.8m)
+[18:42:06]   trial  32/40  MAE=6.7547  (94.0s, elapsed 93.8m, eta 23.5m)
+[18:42:26]   trial  33/40  MAE=6.9803  (19.9s, elapsed 94.2m, eta 20.0m)
+[18:44:30]   trial  34/40  MAE=6.7780  (124.4s, elapsed 96.2m, eta 17.0m)
+[18:44:51]   trial  35/40  MAE=7.0602  (21.3s, elapsed 96.6m, eta 13.8m)
+[18:45:24]   trial  36/40  MAE=6.9891  (33.2s, elapsed 97.1m, eta 10.8m)
+[18:45:51]   trial  37/40  MAE=6.8188  (27.0s, elapsed 97.6m, eta 7.9m)
+[18:46:10]   trial  38/40  MAE=6.8597  (19.0s, elapsed 97.9m, eta 5.2m)
+[18:46:19]   trial  39/40  MAE=7.1055  (8.9s, elapsed 98.1m, eta 2.5m)
+[18:47:28]   trial  40/40  MAE=6.8107  (68.4s, elapsed 99.2m, eta 0.0m)
+[18:47:28] --- wrote partial: oof_age_lgb.npz + best_params_age.json (1 families done) ---
+[18:47:28] --- XGB search on age: 30 trials ---
+[18:48:10]   trial   1/30  MAE=6.9483  (42.4s, elapsed 0.7m, eta 20.5m)  *
+[18:49:09]   trial   2/30  MAE=6.8450  (58.8s, elapsed 1.7m, eta 23.6m)  *
+[18:50:39]   trial   3/30  MAE=6.8500  (90.4s, elapsed 3.2m, eta 28.7m)
+[18:51:54]   trial   4/30  MAE=6.8447  (74.3s, elapsed 4.4m, eta 28.8m)  *
+[18:53:12]   trial   5/30  MAE=6.9114  (78.4s, elapsed 5.7m, eta 28.7m)
+[18:55:35]   trial   6/30  MAE=6.6751  (142.7s, elapsed 8.1m, eta 32.5m)  *
+[18:57:01]   trial   7/30  MAE=6.7349  (85.8s, elapsed 9.5m, eta 31.4m)
+[18:57:44]   trial   8/30  MAE=6.9858  (43.3s, elapsed 10.3m, eta 28.2m)
+[18:58:45]   trial   9/30  MAE=6.9752  (60.9s, elapsed 11.3m, eta 26.3m)
+[18:59:26]   trial  10/30  MAE=6.8329  (41.0s, elapsed 12.0m, eta 23.9m)
+[19:00:15]   trial  11/30  MAE=6.8801  (49.5s, elapsed 12.8m, eta 22.1m)
+[19:00:50]   trial  12/30  MAE=6.9183  (35.0s, elapsed 13.4m, eta 20.1m)
+[19:01:13]   trial  13/30  MAE=6.9819  (22.8s, elapsed 13.8m, eta 18.0m)
+[19:01:51]   trial  14/30  MAE=6.8612  (37.3s, elapsed 14.4m, eta 16.4m)
+[19:02:28]   trial  15/30  MAE=6.7766  (37.7s, elapsed 15.0m, eta 15.0m)
+[19:03:25]   trial  16/30  MAE=6.8649  (56.8s, elapsed 16.0m, eta 14.0m)
+[19:04:30]   trial  17/30  MAE=6.9424  (65.1s, elapsed 17.0m, eta 13.0m)
+[19:05:28]   trial  18/30  MAE=6.8562  (57.8s, elapsed 18.0m, eta 12.0m)
+[19:06:26]   trial  19/30  MAE=6.9739  (58.0s, elapsed 19.0m, eta 11.0m)
+[19:07:12]   trial  20/30  MAE=6.7965  (46.3s, elapsed 19.7m, eta 9.9m)
+[19:08:18]   trial  21/30  MAE=6.8340  (66.2s, elapsed 20.8m, eta 8.9m)
+[19:09:16]   trial  22/30  MAE=6.8212  (57.5s, elapsed 21.8m, eta 7.9m)
+[19:12:19]   trial  23/30  MAE=6.7911  (183.2s, elapsed 24.9m, eta 7.6m)
+[19:13:41]   trial  24/30  MAE=7.0060  (82.1s, elapsed 26.2m, eta 6.6m)
+[19:14:51]   trial  25/30  MAE=6.7814  (69.9s, elapsed 27.4m, eta 5.5m)
+[19:15:47]   trial  26/30  MAE=7.0318  (55.8s, elapsed 28.3m, eta 4.4m)
+[19:16:30]   trial  27/30  MAE=7.0232  (43.2s, elapsed 29.0m, eta 3.2m)
+[19:19:36]   trial  28/30  MAE=6.8951  (186.2s, elapsed 32.1m, eta 2.3m)
+[19:21:07]   trial  29/30  MAE=6.7998  (90.9s, elapsed 33.7m, eta 1.2m)
+[19:23:24]   trial  30/30  MAE=6.7256  (136.5s, elapsed 35.9m, eta 0.0m)
+[19:23:24] --- wrote partial: oof_age_xgb.npz + best_params_age.json (2 families done) ---
+[19:23:24] --- HGB search on age: 20 trials ---
+[19:35:21]   trial   1/20  MAE=6.9677  (717.0s, elapsed 12.0m, eta 227.1m)  *
+[19:42:11]   trial   2/20  MAE=6.8248  (410.0s, elapsed 18.8m, eta 169.1m)  *
+[19:51:07]   trial   3/20  MAE=6.9228  (536.0s, elapsed 27.7m, eta 157.1m)
+[19:57:53]   trial   4/20  MAE=7.0318  (319.8s, elapsed 34.5m, eta 137.9m)
+[20:01:59]   trial   5/20  MAE=6.9693  (246.3s, elapsed 38.6m, eta 115.8m)
+[20:12:05]   trial   6/20  MAE=7.0964  (605.5s, elapsed 48.7m, eta 113.6m)
+[20:13:27]   trial   7/20  MAE=6.9198  (80.1s, elapsed 50.1m, eta 93.0m)
+[20:18:48]   trial   8/20  MAE=6.9085  (321.4s, elapsed 55.4m, eta 83.1m)
+[20:22:07] Started at 2026-05-22T20:22:07.034220
+[20:22:07] Python 3.12.4, lightgbm 4.6.0, xgboost 2.1.4, catboost installed
+[20:22:07] Targets:  ['mood']
+[20:22:07] Families: ['lgb', 'xgb']
+[20:22:07] Trials:   lgb=30 xgb=20 cat=80 hgb=50 et=40
+[20:22:07] Top-K stack: lgb=5 xgb=4 cat=4 hgb=3 et=2
+[20:22:07] Resumable mode: True
+[20:22:07] X: (6710, 441)  gender boys/girls=2758/3952  age mean=20.8  mood mean=18.1
+[20:22:07] 
+############# TARGET: MOOD #############
+[20:22:07] --- LGB search on mood: 30 trials ---
+[20:23:06]   trial   1/30  MAE=9.6842  (59.6s, elapsed 1.0m, eta 28.8m)  *
+[20:27:23]   trial   2/30  MAE=9.1922  (256.7s, elapsed 5.3m, eta 73.8m)  *
+[20:28:34]   trial   3/30  MAE=10.1105  (70.9s, elapsed 6.5m, eta 58.1m)
+[20:29:39]   trial   4/30  MAE=9.5383  (65.3s, elapsed 7.5m, eta 49.0m)
+[20:30:16]   trial   5/30  MAE=10.0088  (36.7s, elapsed 8.2m, eta 40.8m)
+[20:30:54]   trial   6/30  MAE=10.0847  (38.3s, elapsed 8.8m, eta 35.2m)
+[20:32:35]   trial   7/30  MAE=9.5040  (100.9s, elapsed 10.5m, eta 34.4m)
+[20:33:14]   trial   8/30  MAE=9.8461  (39.1s, elapsed 11.1m, eta 30.6m)
+[20:33:53]   trial   9/30  MAE=9.5498  (39.3s, elapsed 11.8m, eta 27.5m)
+[20:35:07]   trial  10/30  MAE=9.7701  (73.5s, elapsed 13.0m, eta 26.0m)
+[20:35:22]   trial  11/30  MAE=9.9791  (15.1s, elapsed 13.3m, eta 22.9m)
+[20:36:03]   trial  12/30  MAE=9.9145  (41.4s, elapsed 13.9m, eta 20.9m)
+[20:36:26]   trial  13/30  MAE=9.8576  (22.7s, elapsed 14.3m, eta 18.7m)
+[20:36:46]   trial  14/30  MAE=10.0095  (20.3s, elapsed 14.7m, eta 16.8m)
+[20:37:39]   trial  15/30  MAE=9.9311  (52.4s, elapsed 15.5m, eta 15.5m)
+[20:38:11]   trial  16/30  MAE=9.7038  (31.8s, elapsed 16.1m, eta 14.1m)
+[20:38:16]   trial  17/30  MAE=10.1420  (5.3s, elapsed 16.2m, eta 12.4m)
+[20:38:34]   trial  18/30  MAE=9.7563  (17.9s, elapsed 16.5m, eta 11.0m)
+[20:38:38]   trial  19/30  MAE=10.5157  (4.0s, elapsed 16.5m, eta 9.6m)
+[20:41:00]   trial  20/30  MAE=9.1730  (142.5s, elapsed 18.9m, eta 9.4m)  *
+[20:41:05]   trial  21/30  MAE=10.5346  (5.1s, elapsed 19.0m, eta 8.1m)
+[20:41:54]   trial  22/30  MAE=9.5499  (48.9s, elapsed 19.8m, eta 7.2m)
+[20:42:10]   trial  23/30  MAE=9.8600  (15.9s, elapsed 20.1m, eta 6.1m)
+[20:42:15]   trial  24/30  MAE=10.0821  (5.1s, elapsed 20.1m, eta 5.0m)
+[20:42:33]   trial  25/30  MAE=10.0111  (17.6s, elapsed 20.4m, eta 4.1m)
+[20:44:40]   trial  26/30  MAE=9.2247  (126.5s, elapsed 22.5m, eta 3.5m)
+[20:44:50]   trial  27/30  MAE=9.8317  (10.6s, elapsed 22.7m, eta 2.5m)
+[20:45:21]   trial  28/30  MAE=9.9133  (31.2s, elapsed 23.2m, eta 1.7m)
+[20:45:39]   trial  29/30  MAE=9.8130  (18.1s, elapsed 23.5m, eta 0.8m)
+[20:46:20]   trial  30/30  MAE=9.4825  (40.2s, elapsed 24.2m, eta 0.0m)
+[20:46:20] --- wrote partial: oof_mood_lgb.npz + best_params_mood.json (1 families done) ---
+[20:46:20] --- XGB search on mood: 20 trials ---
+[20:47:12]   trial   1/20  MAE=9.9277  (51.9s, elapsed 0.9m, eta 16.4m)  *
+[20:49:12]   trial   2/20  MAE=9.0312  (120.5s, elapsed 2.9m, eta 25.9m)  *
+[20:49:51]   trial   3/20  MAE=9.9131  (39.3s, elapsed 3.5m, eta 20.0m)
+[20:52:27]   trial   4/20  MAE=8.9876  (155.6s, elapsed 6.1m, eta 24.5m)  *
+[20:54:45]   trial   5/20  MAE=9.2388  (138.4s, elapsed 8.4m, eta 25.3m)
+[20:56:39]   trial   6/20  MAE=9.1638  (114.1s, elapsed 10.3m, eta 24.1m)
+[20:57:57]   trial   7/20  MAE=9.6238  (77.2s, elapsed 11.6m, eta 21.6m)
+[21:00:42]   trial   8/20  MAE=9.8273  (165.4s, elapsed 14.4m, eta 21.6m)
+[21:01:23]   trial   9/20  MAE=10.3168  (41.2s, elapsed 15.1m, eta 18.4m)
+[21:02:24]   trial  10/20  MAE=9.5471  (60.5s, elapsed 16.1m, eta 16.1m)
+[21:06:51]   trial  11/20  MAE=9.3036  (267.3s, elapsed 20.5m, eta 16.8m)
+[21:09:00]   trial  12/20  MAE=9.8452  (129.5s, elapsed 22.7m, eta 15.1m)
+[21:15:09]   trial  13/20  MAE=9.1277  (368.4s, elapsed 28.8m, eta 15.5m)
+[21:19:02]   trial  14/20  MAE=9.1768  (233.1s, elapsed 32.7m, eta 14.0m)
+[21:22:32]   trial  15/20  MAE=9.2763  (209.9s, elapsed 36.2m, eta 12.1m)
+[21:23:11]   trial  16/20  MAE=10.1477  (39.4s, elapsed 36.9m, eta 9.2m)
+[21:24:31]   trial  17/20  MAE=9.4530  (79.5s, elapsed 38.2m, eta 6.7m)
+[21:27:55]   trial  18/20  MAE=8.9990  (204.5s, elapsed 41.6m, eta 4.6m)
+[21:29:54]   trial  19/20  MAE=9.4189  (119.1s, elapsed 43.6m, eta 2.3m)
+[21:30:36]   trial  20/20  MAE=9.9519  (41.8s, elapsed 44.3m, eta 0.0m)
+[21:30:36] --- wrote partial: oof_mood_xgb.npz + best_params_mood.json (2 families done) ---
+[21:30:36] --- MOOD summary ---
+[21:30:36]   stacked_mae: 9.011087417602539
+[21:30:36]   stacked_r2: 0.2351667284965515
+[21:30:36]   n_base_models_in_stack: 9
+[21:30:36]   best_lgb_mae: 9.173044204711914
+[21:30:36]   best_xgb_mae: 8.98757553100586
+[21:30:37] 
+Wrote combined summary to C:\Users\andre\Documents\portfolio_private\ai\color-polygraph\training\overnight_out\summary.json
+[21:30:37] Wrote trial table to C:\Users\andre\Documents\portfolio_private\ai\color-polygraph\training\overnight_out\trial_results.csv
+[21:30:37] Wrote OOF preds to C:\Users\andre\Documents\portfolio_private\ai\color-polygraph\training\overnight_out/oof_*.npz
+[21:30:37] Finished at 2026-05-22T21:30:37.026409

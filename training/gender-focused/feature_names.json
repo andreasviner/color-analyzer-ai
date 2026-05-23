@@ -1,0 +1,12 @@
+[
+  "rgb_all_girly_total",
+  "rgb_all_masc_total",
+  "rgb_all_signed_total",
+  "lab_all_girly_total",
+  "lab_all_masc_total",
+  "lab_all_signed_total",
+  "pq_chosen_lead_mean",
+  "pq_chosen_lead_std",
+  "pq_picked_most_girly_frac",
+  "pq_picked_least_girly_frac"
+]

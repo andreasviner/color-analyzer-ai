@@ -1,0 +1,41 @@
+{
+  "lgb": {
+    "n_estimators": 1600,
+    "learning_rate": 0.03130452717808493,
+    "num_leaves": 191,
+    "max_depth": 12,
+    "min_child_samples": 20,
+    "feature_fraction": 0.9,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "reg_alpha": 0.32160365699281873,
+    "reg_lambda": 0.2719612898609424,
+    "min_split_gain": 0.17170840283850977,
+    "extra_trees": false,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1,
+    "objective": "regression_l1",
+    "metric": "mae"
+  },
+  "xgb": {
+    "n_estimators": 1200,
+    "learning_rate": 0.05102106674869275,
+    "max_depth": 8,
+    "min_child_weight": 1.4750600112910925,
+    "subsample": 0.8,
+    "colsample_bytree": 0.7,
+    "colsample_bylevel": 0.7,
+    "reg_alpha": 2.439642180998933,
+    "reg_lambda": 0.428379768032302,
+    "gamma": 0.07073711424773893,
+    "max_bin": 256,
+    "tree_method": "hist",
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": 0,
+    "early_stopping_rounds": 40,
+    "eval_metric": "mae",
+    "objective": "reg:absoluteerror"
+  }
+}

@@ -1,0 +1,4 @@
+[16:55:35] Rescue target=gender, families=['lgb', 'xgb', 'cat']
+[16:55:35] Top-K per family: {'lgb': 5, 'xgb': 4, 'cat': 3, 'hgb': 3, 'et': 2}
+[16:55:35] X=(6710, 441), y=(6710,)
+missing: C:\Users\andre\Documents\portfolio_private\ai\color-polygraph\training\gbm-stack\overnight_out\trial_results.csv

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hybrid blend · Color Polygraph · Andreas Lindeman</title>
+  <meta name="description" content="Meta-learner over the GBM stack + transformer + BiGRU + LSTM out-of-fold predictions on the color polygraph dataset." />
+  <link rel="canonical" href="https://ai.andreaslindeman.com/color-polygraph/models/hybrid-blend.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../style.css" />
+  <link rel="icon" type="image/png" href="../../icon.png" />
+  <style>
+    .model-scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 24px; }
+    .model-scores .card { border: 1px solid var(--hairline); border-radius: 6px; padding: 14px 16px; background: var(--surface); }
+    .model-scores .label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-mute); }
+    .model-scores .value { font-family: var(--serif); font-style: italic; font-variation-settings: "opsz" 36; font-size: 28px; margin-top: 6px; color: var(--text); }
+    .model-scores .meta { font-family: var(--mono); font-size: 11px; color: var(--text-mute); margin-top: 4px; }
+    .model-scores .best { color: var(--hobby); }
+    .config-list { list-style: none; padding: 0; margin: 0; }
+    .config-list li { font-family: var(--mono); font-size: 12px; color: var(--text); padding: 8px 0; border-bottom: 1px dashed var(--hairline); }
+    .config-list li:last-child { border-bottom: none; }
+    .config-list strong { color: var(--text-mute); letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; display: inline-block; min-width: 140px; margin-right: 8px; }
+    @media (max-width: 720px) { .model-scores { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <nav class="site-nav" aria-label="Primary">
+    <a href="https://andreaslindeman.com/" class="brand">
+      <span class="brand-mark">AL</span>
+      <span class="brand-name">Andreas Lindeman</span>
+    </a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links-list" aria-label="Open menu">
+      <span class="nav-toggle-bar" aria-hidden="true"></span>
+      <span class="nav-toggle-bar" aria-hidden="true"></span>
+      <span class="nav-toggle-bar" aria-hidden="true"></span>
+    </button>
+    <ul id="nav-links-list" class="nav-links">
+      <li><a href="https://andreaslindeman.com/#about">About</a></li>
+      <li><a href="https://andreaslindeman.com/#timeline">Timeline</a></li>
+      <li><a href="https://andreaslindeman.com/#stack">Stack</a></li>
+      <li><a href="https://andreaslindeman.com/#contact">Contact</a></li>
+    </ul>
+    <a class="lang-switch" data-lang-base="https://andreaslindeman.no" href="https://andreaslindeman.no/" hreflang="no" aria-label="Switch to Norwegian">
+      <svg class="lang-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/></svg>
+      <span class="lang-pair"><span class="lang-current">EN</span><span class="lang-sep" aria-hidden="true">/</span><span class="lang-target">NO</span></span>
+    </a>
+  </nav>
+  <script>
+    (function(){
+      var s=document.querySelector('.lang-switch');
+      if(s&&s.dataset.langBase)s.href=s.dataset.langBase+location.pathname+location.search+location.hash;
+      var nav=document.querySelector('.site-nav'), btn=document.querySelector('.nav-toggle');
+      if(btn&&nav){
+        function closeMenu(){nav.classList.remove('is-open');btn.setAttribute('aria-expanded','false');btn.setAttribute('aria-label','Open menu');}
+        btn.addEventListener('click',function(e){e.stopPropagation();var open=nav.classList.toggle('is-open');btn.setAttribute('aria-expanded',open?'true':'false');btn.setAttribute('aria-label',open?'Close menu':'Open menu');});
+        nav.querySelectorAll('.nav-links a').forEach(function(a){a.addEventListener('click',closeMenu);});
+        document.addEventListener('click',function(e){if(nav.classList.contains('is-open')&&!nav.contains(e.target))closeMenu();});
+        document.addEventListener('keydown',function(e){if(e.key==='Escape'&&nav.classList.contains('is-open'))closeMenu();});
+      }
+    })();
+  </script>
+
+  <main class="project-page">
+    <a href="../index.html" class="project-back">Back to AI architectures leaderboard</a>
+
+    <div class="project-meta-row">
+      <span class="cat-tag"><span class="cat-swatch hobby"></span> hobby</span>
+      <span class="sep"></span>
+      <span>Color polygraph · architecture detail</span>
+      <span class="sep"></span>
+      <span class="status-tag ongoing">New entry, 2026</span>
+    </div>
+
+    <h1 class="project-title">Hybrid <em>blend</em></h1>
+
+    <p class="project-lede">
+      A meta-learner sitting on top of every other architecture in the leaderboard.
+      Its job is to answer one question: do the sequence models add anything on top
+      of the trees? The honest answer is no.
+    </p>
+
+    <section class="project-section">
+      <h2>Scores</h2>
+      <div class="model-scores">
+        <div class="card">
+          <div class="label">Gender AUC</div>
+          <div class="value">0.875</div>
+          <div class="meta">vs 0.877 GBM alone</div>
+        </div>
+        <div class="card">
+          <div class="label">Age MAE</div>
+          <div class="value">6.61</div>
+          <div class="meta">ties GBM stack</div>
+        </div>
+        <div class="card">
+          <div class="label">Mood MAE</div>
+          <div class="value">8.96</div>
+          <div class="meta">ties GBM stack</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="project-section">
+      <h2>How it works</h2>
+      <p>
+        For each target the script loads the OOF predictions of the GBM stack, the
+        transformer, the BiGRU, and the LSTM, and tries three different meta-learners
+        on those columns: a non-negative L1 minimiser, NNLS (non-negative least
+        squares), and a logistic / ridge CV. The CV-validated best of the three is
+        kept as the official hybrid number.
+      </p>
+      <p>
+        The result every time is the same: the blender lands on the GBM stack with
+        weight ~1.0 and assigns the sequence models essentially zero weight. On
+        gender the small positive weights it tries to give the sequence models even
+        hurt: the hybrid lands at 0.875 vs 0.877 for the GBM stack alone. On age and
+        mood it ties the GBM stack to the third decimal. The takeaway: at this
+        dataset size the trees consume all the signal the sequence models have.
+      </p>
+    </section>
+
+    <section class="project-section">
+      <h2>Configuration</h2>
+      <ul class="config-list">
+        <li><strong>Base predictors</strong>GBM stack, transformer, BiGRU, LSTM (4 OOF columns per target)</li>
+        <li><strong>Blenders tried</strong>L1 minimisation, NNLS, logistic CV (gender) / ridge CV (regression)</li>
+        <li><strong>Selection</strong>Best held-out CV score per target</li>
+        <li><strong>CV</strong>5-fold StratifiedKFold (gender), KFold (age, mood), seed 42</li>
+        <li><strong>Constraint</strong>Non-negative weights, sum unconstrained</li>
+      </ul>
+    </section>
+
+    <section class="project-section">
+      <h2>Project links</h2>
+      <div class="project-links">
+        <a href="https://github.com/andreasviner/color-analyzer-ai/tree/main/training/hybrid" target="_blank" rel="noopener">Source on GitHub</a>
+        <a href="https://github.com/andreasviner/color-analyzer-ai/blob/main/training/hybrid/blend.py" target="_blank" rel="noopener">blend.py</a>
+      </div>
+    </section>
+
+    <a href="../index.html" class="project-back">Back to AI architectures leaderboard</a>
+  </main>
+
+  <footer class="site-footer">
+    <span>© <span id="year"></span> Andreas Lindeman</span>
+    <span class="footer-meta">Built by hand · No frameworks · Hosted on GitHub Pages</span>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

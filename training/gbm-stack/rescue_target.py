@@ -36,6 +36,7 @@ from datetime import datetime
 import numpy as np
 import lightgbm as lgb
 import xgboost as xgb
+from scipy.optimize import minimize
 from sklearn.ensemble import (
     ExtraTreesClassifier, ExtraTreesRegressor,
     HistGradientBoostingClassifier, HistGradientBoostingRegressor,
@@ -54,7 +55,7 @@ except ImportError:
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.normpath(os.path.join(HERE, ".."))   # ai/ root: shared features.npy / targets.npz
-OUT_DIR = os.path.join(HERE, "overnight_out")
+OUT_DIR = os.path.join(DATA_DIR, "overnight_out")
 TRIALS_CSV = os.path.join(OUT_DIR, "trial_results.csv")
 
 N_FOLDS = 5
@@ -160,14 +161,26 @@ def stack_gender(oofs, y):
 
 
 def stack_reg(oofs, y):
+    """Stack regression OOFs with a non-negative L1-loss blend.
+
+    Ridge / L2 stacking is wrong for MAE-trained base learners: each base
+    OOF is approximately the conditional median, and a weighted L2 fit
+    pulls the blend toward the conditional mean, which inflates MAE. We
+    minimise sum |X@w - y| with non-negative weights, which preserves the
+    median property.
+    """
     X_meta = np.column_stack(oofs)
+    n_feat = X_meta.shape[1]
     cv = KFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
     oof = np.zeros(len(y), dtype=np.float32)
-    alphas = [0.01, 0.1, 1.0, 5.0, 25.0, 100.0]
     for tr, va in cv.split(X_meta):
-        m = RidgeCV(alphas=alphas, cv=3)
-        m.fit(X_meta[tr], y[tr])
-        oof[va] = m.predict(X_meta[va])
+        def loss(w):
+            return np.abs(X_meta[tr] @ w - y[tr]).mean()
+        # warm-start with equal weights normalised so blend predicts ~y
+        w0 = np.full(n_feat, 1.0 / n_feat)
+        res = minimize(loss, x0=w0, bounds=[(0.0, 1.0)] * n_feat,
+                       method="L-BFGS-B")
+        oof[va] = (X_meta[va] @ res.x).astype(np.float32)
     return oof
 
 

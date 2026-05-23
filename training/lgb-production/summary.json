@@ -1,0 +1,85 @@
+{
+  "trained_at": "2026-05-23T13:30:03.483284+00:00",
+  "n_total_rows": 6710,
+  "validation": {
+    "kind": "stratified random split",
+    "n_train": 6000,
+    "n_val": 710,
+    "stratify": "gender",
+    "seed": 42
+  },
+  "deployment": {
+    "fit_on_rows": 6710,
+    "notes": "Final boosters re-fit on the full dataset after metrics were captured on the eval split; bucket grids are built from all rows."
+  },
+  "champion_clf_params": {
+    "n_estimators": 800,
+    "num_leaves": 63,
+    "learning_rate": 0.03,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "min_child_samples": 20,
+    "reg_lambda": 1.0,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1
+  },
+  "champion_reg_params": {
+    "n_estimators": 1000,
+    "num_leaves": 63,
+    "learning_rate": 0.03,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "min_child_samples": 20,
+    "reg_lambda": 1.0,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1
+  },
+  "n_features": {
+    "gender": 477,
+    "age": 475,
+    "mood": 475
+  },
+  "target_stats": {
+    "gender_girl_frac": 0.5889716840536513,
+    "age_min": 6,
+    "age_max": 68,
+    "age_mean": 20.837555886736215,
+    "mood_min": 0,
+    "mood_max": 60,
+    "mood_mean": 18.08703427719821
+  },
+  "validation_scores": {
+    "gender_auc": 0.8863472504424199,
+    "gender_accuracy": 0.8112676056338028,
+    "gender_f1": 0.8466819221967964,
+    "age_mae": 6.4804239801227315,
+    "age_r2": 0.28422281397790106,
+    "mood_mae": 8.760993990799756,
+    "mood_r2": 0.24412038049066465
+  },
+  "emit_stats": {
+    "gender": {
+      "json_kb": 2827.29,
+      "n_trees": 800,
+      "n_nodes": 100000,
+      "max_emit_delta": 0.0
+    },
+    "age": {
+      "json_kb": 3512.0,
+      "n_trees": 1000,
+      "n_nodes": 125000,
+      "max_emit_delta": 0.0
+    },
+    "mood": {
+      "json_kb": 3504.64,
+      "n_trees": 1000,
+      "n_nodes": 125000,
+      "max_emit_delta": 0.0
+    }
+  },
+  "seed": 42
+}

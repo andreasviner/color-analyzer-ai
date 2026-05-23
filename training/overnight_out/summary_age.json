@@ -1,0 +1,9 @@
+{
+  "stacked_mae": 6.611536026000977,
+  "stacked_r2": 0.14487290382385254,
+  "n_base_models_in_stack": 12,
+  "best_lgb_mae": 6.632901191711426,
+  "best_xgb_mae": 6.675103664398193,
+  "best_hgb_mae": 6.824772834777832,
+  "stacked_bucket_acc": 0.37585692995529063
+}

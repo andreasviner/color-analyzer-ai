@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Take the survey · Color Polygraph · Andreas Lindeman</title>
+  <meta name="description" content="Take the same 21-question color bracket the original 2020 color polygraph used: pick your favourite of four swatches, twenty-one times, until one color wins." />
+  <link rel="canonical" href="https://ai.andreaslindeman.com/color-polygraph/survey.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="icon" type="image/png" href="../icon.png" />
+  <style>
+    .sv-stage {
+      position: relative;
+      margin: 8px 0 24px;
+      display: none;
+      flex-direction: column;
+      gap: 18px;
+    }
+    body.sv-active .sv-stage { display: flex; }
+    .sv-progress-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      pointer-events: none;
+    }
+    .sv-progress-ring {
+      position: relative;
+      width: 46px;
+      height: 46px;
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      border-radius: 50%;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+      opacity: 0.85;
+    }
+    .sv-progress-ring svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+      display: block;
+    }
+    .sv-ring-track,
+    .sv-ring-fill {
+      fill: none;
+      stroke-width: 3;
+    }
+    .sv-ring-track {
+      stroke: var(--hairline-2);
+    }
+    .sv-ring-fill {
+      stroke: var(--hobby);
+      stroke-linecap: round;
+      stroke-dasharray: 213.63;
+      stroke-dashoffset: 213.63;
+      transition: stroke-dashoffset .35s ease;
+    }
+    .sv-progress-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.02em;
+      color: var(--text-mute);
+      font-variant-numeric: tabular-nums;
+      gap: 0;
+    }
+    .sv-progress-text b {
+      color: var(--hobby);
+      font-weight: 500;
+    }
+    .sv-progress-slash {
+      color: var(--text-dim);
+      margin: 0 1px;
+    }
+    .sv-progress-total {
+      color: var(--text-mute);
+    }
+    .sv-cta-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      margin: 36px 0 28px;
+    }
+    .sv-start-btn {
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      padding: 18px 46px;
+      background: var(--hobby);
+      color: var(--bg);
+      border: 0;
+      border-radius: 3px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+      box-shadow: 0 8px 24px rgba(245, 185, 92, 0.18);
+    }
+    .sv-start-btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.06);
+      box-shadow: 0 14px 32px rgba(245, 185, 92, 0.28);
+    }
+    .sv-start-btn:active { transform: translateY(0); }
+    .sv-cta-sub {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      margin: 0;
+    }
+
+    .sv-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 13, 24, 0.55);
+      backdrop-filter: blur(20px) saturate(0.45);
+      -webkit-backdrop-filter: blur(20px) saturate(0.45);
+      cursor: pointer;
+      border-radius: 6px;
+      opacity: 1;
+      transition: opacity .35s ease;
+    }
+    .sv-overlay.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .sv-overlay-inner {
+      text-align: center;
+      max-width: 540px;
+      padding: 24px;
+      pointer-events: none;
+    }
+    .sv-overlay-main {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: clamp(24px, 4.5vw, 36px);
+      line-height: 1.3;
+      color: var(--text);
+      margin: 0 0 18px;
+      font-variation-settings: "opsz" 36;
+    }
+    .sv-overlay-sub {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      margin: 0;
+    }
+    .sv-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    .sv-card {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      border: 1px solid var(--hairline);
+      border-radius: 6px;
+      background: var(--surface);
+      cursor: pointer;
+      overflow: hidden;
+      padding: 0;
+      transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease, opacity .25s ease;
+    }
+    .sv-card:focus-visible {
+      outline: none;
+      border-color: var(--hobby);
+      box-shadow: 0 0 0 2px rgba(245, 185, 92, 0.32);
+    }
+    .sv-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--hairline-2);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+    }
+    .sv-card-swatch {
+      position: absolute;
+      inset: 0;
+      background: var(--c, #888);
+    }
+    .sv-card-hex {
+      position: absolute;
+      left: 10px;
+      bottom: 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.78);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .15s ease;
+    }
+    .sv-card:hover .sv-card-hex,
+    .sv-card:focus-visible .sv-card-hex { opacity: 1; }
+    .sv-card.is-dark .sv-card-hex {
+      color: rgba(255, 255, 255, 0.92);
+    }
+    .sv-card.is-light .sv-card-hex {
+      color: rgba(20, 20, 24, 0.82);
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    .sv-grid.is-fading .sv-card {
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.985);
+    }
+    .sv-bracket {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      color: var(--text-mute);
+    }
+    .sv-bracket li {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border: 1px solid var(--hairline-2);
+      border-radius: 2px;
+      white-space: nowrap;
+      transition: border-color .2s ease, color .2s ease, background .2s ease;
+    }
+    .sv-bracket li.is-active {
+      background: rgba(245, 185, 92, 0.12);
+      color: var(--hobby);
+      border-color: rgba(245, 185, 92, 0.32);
+    }
+    .sv-bracket li.is-done {
+      color: var(--text-dim);
+      opacity: 0.7;
+    }
+    .sv-bracket-arrow {
+      border: 0 !important;
+      padding: 0 !important;
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+
+    .sv-result {
+      display: none;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .sv-result.is-visible { display: flex; }
+    .sv-stage.is-done { display: none; }
+
+    .sv-winner-wrap {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 24px;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 6px;
+      padding: 24px;
+    }
+    .sv-winner-swatch {
+      aspect-ratio: 1 / 1;
+      width: 100%;
+      border-radius: 4px;
+      background: var(--c, #888);
+      border: 1px solid var(--hairline);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+    }
+    .sv-winner-info h3 {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      margin: 0 0 6px;
+      font-weight: 500;
+    }
+    .sv-winner-hex {
+      font-family: var(--mono);
+      font-size: 28px;
+      letter-spacing: 0.06em;
+      color: var(--hobby);
+      margin: 0 0 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .sv-winner-rgb {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-mute);
+      margin: 0 0 14px;
+      letter-spacing: 0.04em;
+    }
+    .sv-winner-blurb {
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--text);
+      margin: 0;
+    }
+    .sv-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .sv-btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 9px 14px;
+      border-radius: 2px;
+      background: transparent;
+      border: 1px solid var(--hairline);
+      color: var(--text-mute);
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .sv-btn:hover { color: var(--text); border-color: var(--hairline-2); }
+    .sv-btn.is-primary {
+      background: rgba(245, 185, 92, 0.12);
+      color: var(--hobby);
+      border-color: rgba(245, 185, 92, 0.32);
+    }
+    .sv-btn.is-primary:hover {
+      background: rgba(245, 185, 92, 0.18);
+      border-color: rgba(245, 185, 92, 0.5);
+    }
+
+    .sv-history {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 6px;
+      padding: 20px 22px;
+    }
+    .sv-history h3 {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      margin: 0 0 12px;
+      font-weight: 500;
+    }
+    .sv-history-rounds {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .sv-history-round-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin: 0 0 6px;
+    }
+    .sv-history-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .sv-history-chip {
+      width: 28px;
+      height: 28px;
+      border-radius: 3px;
+      border: 1px solid var(--hairline);
+      background: var(--c);
+    }
+    .sv-history-chip.is-winner {
+      box-shadow: 0 0 0 2px rgba(245, 185, 92, 0.55);
+      border-color: rgba(245, 185, 92, 0.6);
+    }
+
+    .sv-ai {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 6px;
+      padding: 20px 22px;
+    }
+    .sv-ai h3 {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      margin: 0 0 14px;
+      font-weight: 500;
+    }
+    .sv-ai-state {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--text-mute);
+      margin: 0;
+    }
+    .sv-ai-state.is-error { color: #d97b6a; }
+    .sv-ai-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .sv-ai-card {
+      border: 1px solid var(--hairline-2);
+      border-radius: 4px;
+      padding: 12px 14px;
+      background: var(--bg);
+    }
+    .sv-ai-card .label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+    }
+    .sv-ai-card .value {
+      font-family: var(--serif);
+      font-style: italic;
+      font-variation-settings: "opsz" 36;
+      font-size: 24px;
+      margin-top: 4px;
+      color: var(--hobby);
+    }
+    .sv-ai-card .meta {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-mute);
+      margin-top: 3px;
+      letter-spacing: 0.04em;
+    }
+    .sv-ai-footnote {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      margin: 12px 0 0;
+      letter-spacing: 0.04em;
+    }
+    @media (max-width: 540px) {
+      .sv-ai-cards { grid-template-columns: 1fr; }
+    }
+
+    .sv-ai-progress {
+      display: flex;
+      gap: 6px;
+      margin: 0 0 16px;
+      flex-wrap: wrap;
+    }
+    .sv-ai-step {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 2px;
+      border: 1px solid var(--hairline-2);
+      color: var(--text-dim);
+      background: transparent;
+    }
+    .sv-ai-step.is-active {
+      color: var(--hobby);
+      border-color: rgba(245, 185, 92, 0.5);
+      background: rgba(245, 185, 92, 0.1);
+    }
+    .sv-ai-step.is-done {
+      color: var(--text-mute);
+      border-style: dashed;
+    }
+    .sv-ai-stage {
+      min-height: 110px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .sv-ai-loading {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--text-mute);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sv-ai-loading::before {
+      content: '';
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      border: 2px solid var(--hobby);
+      border-right-color: transparent;
+      animation: sv-spin 0.7s linear infinite;
+    }
+    @keyframes sv-spin { to { transform: rotate(360deg); } }
+    .sv-ai-error {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #d97b6a;
+      letter-spacing: 0.04em;
+    }
+    .sv-ai-prediction {
+      font-family: var(--serif);
+      font-style: italic;
+      font-variation-settings: "opsz" 36;
+      font-size: clamp(22px, 3.4vw, 30px);
+      color: var(--text);
+      line-height: 1.4;
+      margin: 0;
+    }
+    .sv-ai-prediction b {
+      color: var(--hobby);
+      font-weight: 500;
+    }
+    .sv-ai-confidence {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      margin: -6px 0 0;
+    }
+    .sv-ai-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .sv-ai-btn {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 11px 18px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: transform .15s ease, border-color .15s, color .15s, background .15s;
+    }
+    .sv-ai-btn.is-yes {
+      background: rgba(245, 185, 92, 0.12);
+      color: var(--hobby);
+      border: 1px solid rgba(245, 185, 92, 0.4);
+    }
+    .sv-ai-btn.is-yes:hover {
+      background: rgba(245, 185, 92, 0.18);
+      border-color: rgba(245, 185, 92, 0.6);
+      transform: translateY(-1px);
+    }
+    .sv-ai-btn.is-no {
+      background: transparent;
+      color: var(--text-mute);
+      border: 1px solid var(--hairline);
+    }
+    .sv-ai-btn.is-no:hover {
+      color: var(--text);
+      border-color: var(--hairline-2);
+    }
+    .sv-ai-input-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .sv-ai-input-row label {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--text-mute);
+    }
+    .sv-ai-input-row input[type="number"] {
+      font-family: var(--mono);
+      font-size: 14px;
+      width: 72px;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--hairline-2);
+      border-radius: 2px;
+      color: var(--text);
+    }
+    .sv-ai-input-row input[type="range"] {
+      flex: 1 1 200px;
+      max-width: 320px;
+    }
+    .sv-ai-input-row .sv-ai-btn {
+      margin-left: auto;
+    }
+    .sv-ai-done {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 6px 0;
+    }
+    .sv-ai-done-headline {
+      font-family: var(--serif);
+      font-style: italic;
+      font-variation-settings: "opsz" 36;
+      font-size: clamp(22px, 3.4vw, 30px);
+      color: var(--text);
+      margin: 0;
+    }
+    .sv-ai-done-sub {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: var(--text-mute);
+      margin: 0;
+    }
+    .sv-ai-done .sv-ai-options { margin-top: 6px; }
+    .sv-share-toast {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--hobby);
+      margin: 0;
+    }
+    @media (max-width: 540px) {
+      .sv-ai-input-row .sv-ai-btn { margin-left: 0; width: 100%; text-align: center; }
+    }
+
+    @media (max-width: 720px) {
+      .sv-winner-wrap {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 18px;
+      }
+      .sv-winner-swatch { max-width: 200px; }
+      .sv-winner-hex { font-size: 22px; }
+    }
+    @media (max-width: 540px) {
+      .sv-grid { gap: 10px; }
+      .sv-bracket { font-size: 9px; gap: 5px; }
+      .sv-bracket li { padding: 3px 7px; }
+      .sv-meta { font-size: 10px; }
+    }
+
+    body.sv-active {
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    body.sv-active main.project-page {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      max-width: none;
+      width: 100%;
+      margin: 0;
+      padding: 14px clamp(16px, 3vw, 32px) 18px;
+    }
+    body.sv-active .project-back,
+    body.sv-active .project-meta-row,
+    body.sv-active .project-title,
+    body.sv-active .project-lede,
+    body.sv-active .sv-cta-wrap,
+    body.sv-active .site-footer {
+      display: none !important;
+    }
+    body.sv-active .project-section {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      border: none;
+    }
+    body.sv-active .sv-stage {
+      flex: 1 1 auto;
+      min-height: 0;
+      margin: 0;
+      gap: 12px;
+    }
+    body.sv-active .sv-grid {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    body.sv-active .sv-card {
+      aspect-ratio: auto;
+      height: 100%;
+    }
+    @media (max-width: 540px) {
+      body.sv-active main.project-page { padding: 10px 12px 14px; }
+      body.sv-active .sv-stage { gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="site-nav" aria-label="Primary">
+    <a href="https://andreaslindeman.com/" class="brand">
+      <span class="brand-mark">AL</span>
+      <span class="brand-name">Andreas Lindeman</span>
+    </a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links-list" aria-label="Open menu">
+      <span class="nav-toggle-bar" aria-hidden="true"></span>
+      <span class="nav-toggle-bar" aria-hidden="true"></span>
+      <span class="nav-toggle-bar" aria-hidden="true"></span>
+    </button>
+    <ul id="nav-links-list" class="nav-links">
+      <li><a href="https://andreaslindeman.com/#about">About</a></li>
+      <li><a href="https://andreaslindeman.com/#timeline">Timeline</a></li>
+      <li><a href="https://andreaslindeman.com/#stack">Stack</a></li>
+      <li><a href="https://andreaslindeman.com/#contact">Contact</a></li>
+    </ul>
+    <a class="lang-switch" data-lang-base="https://andreaslindeman.no" href="https://andreaslindeman.no/" hreflang="no" aria-label="Switch to Norwegian">
+      <svg class="lang-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/></svg>
+      <span class="lang-pair"><span class="lang-current">EN</span><span class="lang-sep" aria-hidden="true">/</span><span class="lang-target">NO</span></span>
+    </a>
+  </nav>
+  <script>
+    (function(){
+      var s=document.querySelector('.lang-switch');
+      if(s&&s.dataset.langBase)s.href=s.dataset.langBase+location.pathname+location.search+location.hash;
+      var nav=document.querySelector('.site-nav'), btn=document.querySelector('.nav-toggle');
+      if(btn&&nav){
+        function closeMenu(){
+          nav.classList.remove('is-open');
+          btn.setAttribute('aria-expanded','false');
+          btn.setAttribute('aria-label','Open menu');
+        }
+        btn.addEventListener('click',function(e){
+          e.stopPropagation();
+          var open=nav.classList.toggle('is-open');
+          btn.setAttribute('aria-expanded',open?'true':'false');
+          btn.setAttribute('aria-label',open?'Close menu':'Open menu');
+        });
+        nav.querySelectorAll('.nav-links a').forEach(function(a){
+          a.addEventListener('click',closeMenu);
+        });
+        document.addEventListener('click',function(e){
+          if(nav.classList.contains('is-open')&&!nav.contains(e.target))closeMenu();
+        });
+        document.addEventListener('keydown',function(e){
+          if(e.key==='Escape'&&nav.classList.contains('is-open'))closeMenu();
+        });
+      }
+    })();
+  </script>
+
+  <main class="project-page">
+    <a href="./" class="project-back">Back to architectures</a>
+
+    <div class="project-meta-row">
+      <span class="cat-tag"><span class="cat-swatch hobby"></span> hobby</span>
+      <span class="sep"></span>
+      <span>survey</span>
+    </div>
+
+    <h1 class="project-title">Take the <em>survey</em></h1>
+
+    <p class="project-lede">
+      The same single-elimination color bracket the original 2020 survey ran:
+      64 colors, four at a time, twenty-one picks, one winner. Nothing is sent
+      anywhere; the bracket runs locally in this tab.
+    </p>
+
+    <div class="sv-cta-wrap" id="svCtaWrap">
+      <button type="button" class="sv-start-btn" id="svStartBtn">Take survey</button>
+      <p class="sv-cta-sub">about two minutes &middot; runs in this tab</p>
+    </div>
+
+    <section class="project-section">
+      <div class="sv-stage" id="svStage">
+        <div class="sv-grid" id="svGrid" role="radiogroup" aria-label="Pick your favourite of these four colors"></div>
+        <div class="sv-progress-center" aria-hidden="true">
+          <div class="sv-progress-ring">
+            <svg viewBox="0 0 72 72">
+              <circle class="sv-ring-track" cx="36" cy="36" r="34"></circle>
+              <circle class="sv-ring-fill" id="svRingFill" cx="36" cy="36" r="34"></circle>
+            </svg>
+            <div class="sv-progress-text">
+              <b id="svQNum">0</b><span class="sv-progress-slash">/</span><span class="sv-progress-total">20</span>
+            </div>
+          </div>
+        </div>
+        <div class="sv-overlay" id="svOverlay">
+          <div class="sv-overlay-inner">
+            <p class="sv-overlay-main">press the colors you enjoy the most</p>
+            <p class="sv-overlay-sub">press anywhere to continue</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="sv-result" id="svResult">
+        <div class="sv-winner-wrap">
+          <div class="sv-winner-swatch" id="svWinnerSwatch"></div>
+          <div class="sv-winner-info">
+            <h3>Your favourite color</h3>
+            <p class="sv-winner-hex" id="svWinnerHex">#000000</p>
+            <p class="sv-winner-rgb" id="svWinnerRgb">rgb(0, 0, 0)</p>
+            <p class="sv-winner-blurb">
+              That is the color that beat 63 others across 21 picks. The same
+              answers are fed to the LightGBM + bucket-scores model below to
+              guess your gender, age, and mood.
+            </p>
+            <div class="sv-actions">
+              <button type="button" class="sv-btn is-primary" id="svRestart">Run it again</button>
+              <a class="sv-btn" href="./">Back to architectures</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="sv-ai" id="svAi">
+          <h3>AI estimate</h3>
+          <div class="sv-ai-progress" id="svAiProgress">
+            <span class="sv-ai-step" data-key="gender">1 &middot; Gender</span>
+            <span class="sv-ai-step" data-key="mood">2 &middot; Mood</span>
+            <span class="sv-ai-step" data-key="age">3 &middot; Age</span>
+          </div>
+          <div class="sv-ai-stage" id="svAiStage"></div>
+          <p class="sv-ai-footnote">
+            Full-size LightGBM trained on 6,710 sessions from the 2020 color
+            polygraph. The trees are loaded as JSON and walked in your browser;
+            feature extraction runs on a small Cloudflare endpoint. Your
+            confirmation becomes a training target for the next version.
+          </p>
+        </div>
+
+        <div class="sv-history">
+          <h3>What you picked</h3>
+          <div class="sv-history-rounds" id="svHistory"></div>
+        </div>
+      </div>
+    </section>
+
+    <a href="./" class="project-back">Back to architectures</a>
+  </main>
+
+  <footer class="site-footer">
+    <span>© <span id="year"></span> Andreas Lindeman</span>
+    <span class="footer-meta">Built by hand · No frameworks · Hosted on GitHub Pages</span>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+
+  <script src="./models-js/tree_walker.js"></script>
+
+  <script>
+  (function () {
+    const TOTAL_QUESTIONS = 21;
+    const COUNTER_MAX = 20;
+    // Cloudflare Python endpoint that runs feature extraction + persists to D1.
+    // Override locally with ?api=http://localhost:8787 or window.COLOR_POLYGRAPH_API.
+    const DEFAULT_API_URL = 'https://api.andreaslindeman.com';
+    const API_URL = (function () {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('api')) return params.get('api').replace(/\/$/, '');
+      } catch (_e) {}
+      if (typeof window !== 'undefined' && window.COLOR_POLYGRAPH_API) {
+        return window.COLOR_POLYGRAPH_API.replace(/\/$/, '');
+      }
+      return DEFAULT_API_URL;
+    })();
+    const MODELS_BASE = './models-js/';
+    // Models are lazy-loaded as each step runs, then memoised in this map so
+    // the user does not pay the download cost twice across a restart.
+    const MODEL_CACHE = Object.create(null);
+
+    function loadModel(name) {
+      if (MODEL_CACHE[name]) return MODEL_CACHE[name];
+      const url = MODELS_BASE + name + '_trees.json';
+      MODEL_CACHE[name] = TreeWalker.load(url).catch((err) => {
+        delete MODEL_CACHE[name];
+        throw err;
+      });
+      return MODEL_CACHE[name];
+    }
+
+    const gridEl     = document.getElementById('svGrid');
+    const qNumEl     = document.getElementById('svQNum');
+    const ringFillEl = document.getElementById('svRingFill');
+    const RING_CIRC  = 2 * Math.PI * 34;
+    ringFillEl.setAttribute('stroke-dasharray', RING_CIRC.toFixed(2));
+    const stageEl    = document.getElementById('svStage');
+    const resultEl   = document.getElementById('svResult');
+    const winnerSw   = document.getElementById('svWinnerSwatch');
+    const winnerHex  = document.getElementById('svWinnerHex');
+    const winnerRgb  = document.getElementById('svWinnerRgb');
+    const historyEl  = document.getElementById('svHistory');
+    const restartBtn = document.getElementById('svRestart');
+    const startBtn   = document.getElementById('svStartBtn');
+    const ctaWrap    = document.getElementById('svCtaWrap');
+    const overlayEl  = document.getElementById('svOverlay');
+    const aiStageEl    = document.getElementById('svAiStage');
+    const aiProgressEl = document.getElementById('svAiProgress');
+
+    function hslToRgb(h, s, l) {
+      h = ((h % 360) + 360) % 360;
+      s /= 100; l /= 100;
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const hp = h / 60;
+      const x = c * (1 - Math.abs((hp % 2) - 1));
+      let r1 = 0, g1 = 0, b1 = 0;
+      if (hp < 1)      { r1 = c; g1 = x; }
+      else if (hp < 2) { r1 = x; g1 = c; }
+      else if (hp < 3) { g1 = c; b1 = x; }
+      else if (hp < 4) { g1 = x; b1 = c; }
+      else if (hp < 5) { r1 = x; b1 = c; }
+      else             { r1 = c; b1 = x; }
+      const m = l - c / 2;
+      return [
+        Math.round((r1 + m) * 255),
+        Math.round((g1 + m) * 255),
+        Math.round((b1 + m) * 255),
+      ];
+    }
+
+    function rgbToHex([r, g, b]) {
+      const h = (n) => n.toString(16).padStart(2, '0');
+      return '#' + h(r) + h(g) + h(b);
+    }
+
+    function luminance([r, g, b]) {
+      const f = (c) => {
+        const x = c / 255;
+        return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+      };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function generatePalette() {
+      const colors = [];
+      const STEP = 64;
+      for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+          for (let k = 0; k < 4; k++) {
+            const r = i * STEP + Math.floor(Math.random() * STEP);
+            const g = j * STEP + Math.floor(Math.random() * STEP);
+            const b = k * STEP + Math.floor(Math.random() * STEP);
+            const rgb = [r, g, b];
+            colors.push({ rgb, hex: rgbToHex(rgb) });
+          }
+        }
+      }
+      return shuffle(colors);
+    }
+
+    let state = null;
+
+    function startSurvey() {
+      const palette = generatePalette();
+      state = {
+        questionIdx: 0,
+        round: 0,
+        rounds: [palette, [], []],
+        history: [[], [], []],
+        groupStart: 0,
+        winner: null,
+        startMs: Date.now(),
+        picks: [],
+      };
+      stageEl.classList.remove('is-done');
+      resultEl.classList.remove('is-visible');
+      document.body.classList.add('sv-active');
+      renderQuestion();
+    }
+
+    function renderQuestion() {
+      const round = state.rounds[state.round];
+      const slice = round.slice(state.groupStart, state.groupStart + 4);
+      qNumEl.textContent = state.questionIdx;
+      ringFillEl.style.strokeDashoffset = (RING_CIRC * (1 - state.questionIdx / COUNTER_MAX)).toFixed(2);
+
+      gridEl.innerHTML = '';
+      slice.forEach((color, sliceIdx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sv-card';
+        btn.style.setProperty('--c', color.hex);
+        btn.setAttribute('role', 'radio');
+        btn.setAttribute('aria-checked', 'false');
+        btn.setAttribute('aria-label', 'Pick ' + color.hex);
+        const lum = luminance(color.rgb);
+        btn.classList.add(lum > 0.55 ? 'is-light' : 'is-dark');
+        const sw = document.createElement('span');
+        sw.className = 'sv-card-swatch';
+        const hex = document.createElement('span');
+        hex.className = 'sv-card-hex';
+        hex.textContent = color.hex;
+        btn.appendChild(sw);
+        btn.appendChild(hex);
+        btn.addEventListener('click', () => onPick(color, sliceIdx));
+        gridEl.appendChild(btn);
+      });
+    }
+
+    function onPick(color, sliceIdx) {
+      if (gridEl.classList.contains('is-fading')) return;
+      if (!overlayEl.classList.contains('is-hidden')) return;
+      gridEl.classList.add('is-fading');
+
+      const round = state.rounds[state.round];
+      const slice = round.slice(state.groupStart, state.groupStart + 4);
+      state.history[state.round].push({ winner: color, options: slice.slice() });
+      state.rounds[state.round + 1] = state.rounds[state.round + 1] || [];
+      state.rounds[state.round + 1].push(color);
+      state.picks.push({
+        position: sliceIdx,
+        cumulativeMs: Date.now() - state.startMs,
+      });
+
+      state.groupStart += 4;
+      state.questionIdx += 1;
+
+      const isLastInRound = state.groupStart >= round.length;
+      const isFinal = state.round === 2;
+
+      setTimeout(() => {
+        if (isFinal) {
+          state.winner = color;
+          ringFillEl.style.strokeDashoffset = '0';
+          showResult();
+          return;
+        }
+        if (isLastInRound) {
+          state.round += 1;
+          state.groupStart = 0;
+        }
+        gridEl.classList.remove('is-fading');
+        renderQuestion();
+      }, 280);
+    }
+
+    function showResult() {
+      document.body.classList.remove('sv-active');
+      stageEl.classList.add('is-done');
+      resultEl.classList.add('is-visible');
+      const w = state.winner;
+      winnerSw.style.setProperty('--c', w.hex);
+      winnerHex.textContent = w.hex.toUpperCase();
+      winnerRgb.textContent = 'rgb(' + w.rgb[0] + ', ' + w.rgb[1] + ', ' + w.rgb[2] + ')';
+
+      historyEl.innerHTML = '';
+      const labels = ['Round 1 winners', 'Round 2 winners', 'Final winner'];
+      state.history.forEach((picks, idx) => {
+        if (!picks.length) return;
+        const wrap = document.createElement('div');
+        const lbl = document.createElement('p');
+        lbl.className = 'sv-history-round-label';
+        lbl.textContent = labels[idx];
+        const strip = document.createElement('div');
+        strip.className = 'sv-history-strip';
+        picks.forEach((p) => {
+          const chip = document.createElement('span');
+          chip.className = 'sv-history-chip';
+          chip.style.setProperty('--c', p.winner.hex);
+          chip.title = p.winner.hex;
+          if (idx === 2) chip.classList.add('is-winner');
+          strip.appendChild(chip);
+        });
+        wrap.appendChild(lbl);
+        wrap.appendChild(strip);
+        historyEl.appendChild(wrap);
+      });
+
+      window.scrollTo({ top: resultEl.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+
+      runInferenceFlow();
+    }
+
+    function buildPayload() {
+      const round1 = state.history[0]; // 16 picks
+      const round2 = state.history[1]; // 4 picks
+      const round3 = state.history[2]; // 1 pick
+
+      const offered = [];
+      round1.forEach((step) => {
+        step.options.forEach((c) => offered.push(c.rgb));
+      });
+
+      const r1 = round1.map((s) => s.winner.rgb);
+      const r2 = round2.map((s) => s.winner.rgb);
+      const final = round3[0].winner.rgb;
+
+      const valg = state.picks.map((p) => String(p.position)).join('');
+      const tider = state.picks.map((p) => p.cumulativeMs);
+
+      return { offered, r1, r2, final, valg, tider };
+    }
+
+    function buildMetadata() {
+      const ua = navigator.userAgent || '';
+      const isMobile = /Mobi|Android|iPhone|iPad|iPod|IEMobile|Opera Mini/.test(ua)
+        || (navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches);
+      let timezone = '';
+      try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_e) {}
+      return {
+        client_started_at: state.startMs,
+        client_submitted_at: Date.now(),
+        client_local_time: new Date().toISOString(),
+        user_agent: ua,
+        referrer: document.referrer || '',
+        language: navigator.language || '',
+        locale: (navigator.languages || []).join(','),
+        is_mobile: isMobile,
+        screen_w: window.screen ? window.screen.width : null,
+        screen_h: window.screen ? window.screen.height : null,
+        viewport_w: window.innerWidth,
+        viewport_h: window.innerHeight,
+        timezone_client: timezone,
+      };
+    }
+
+    // ---- step stage rendering ----
+
+    function setProgress(activeKey, doneKeys) {
+      aiProgressEl.querySelectorAll('.sv-ai-step').forEach((el) => {
+        const key = el.getAttribute('data-key');
+        el.classList.remove('is-active', 'is-done');
+        if (doneKeys && doneKeys.indexOf(key) !== -1) el.classList.add('is-done');
+        if (key === activeKey) el.classList.add('is-active');
+      });
+    }
+
+    function clearStage() { aiStageEl.innerHTML = ''; }
+
+    function renderLoading(text) {
+      clearStage();
+      const p = document.createElement('p');
+      p.className = 'sv-ai-loading';
+      p.textContent = text;
+      aiStageEl.appendChild(p);
+    }
+
+    function renderError(text) {
+      clearStage();
+      const p = document.createElement('p');
+      p.className = 'sv-ai-error';
+      p.textContent = text;
+      aiStageEl.appendChild(p);
+    }
+
+    function renderConfirmGender(predLabel, prob) {
+      clearStage();
+      const other = predLabel === 'girl' ? 'boy' : 'girl';
+      const confidencePct = Math.round(Math.max(prob, 1 - prob) * 100);
+      const head = document.createElement('p');
+      head.className = 'sv-ai-prediction';
+      head.innerHTML = 'We think you are a <b>' + predLabel + '</b>.';
+      const conf = document.createElement('p');
+      conf.className = 'sv-ai-confidence';
+      conf.textContent = confidencePct + '% confident';
+      const row = document.createElement('div');
+      row.className = 'sv-ai-options';
+      const yes = document.createElement('button');
+      yes.type = 'button';
+      yes.className = 'sv-ai-btn is-yes';
+      yes.textContent = "That's right";
+      const no = document.createElement('button');
+      no.type = 'button';
+      no.className = 'sv-ai-btn is-no';
+      no.textContent = "Actually I'm a " + other;
+      row.appendChild(yes);
+      row.appendChild(no);
+      aiStageEl.appendChild(head);
+      aiStageEl.appendChild(conf);
+      aiStageEl.appendChild(row);
+      return new Promise((resolve) => {
+        yes.addEventListener('click', () => resolve(predLabel));
+        no.addEventListener('click', () => resolve(other));
+      });
+    }
+
+    function renderConfirmNumeric(opts) {
+      clearStage();
+      const head = document.createElement('p');
+      head.className = 'sv-ai-prediction';
+      head.innerHTML = opts.prompt;
+      const row = document.createElement('div');
+      row.className = 'sv-ai-options';
+      const yes = document.createElement('button');
+      yes.type = 'button';
+      yes.className = 'sv-ai-btn is-yes';
+      yes.textContent = "That's close";
+      const no = document.createElement('button');
+      no.type = 'button';
+      no.className = 'sv-ai-btn is-no';
+      no.textContent = "Let me correct";
+      row.appendChild(yes);
+      row.appendChild(no);
+      aiStageEl.appendChild(head);
+      aiStageEl.appendChild(row);
+      return new Promise((resolve) => {
+        yes.addEventListener('click', () => resolve(opts.predValue));
+        no.addEventListener('click', () => {
+          clearStage();
+          aiStageEl.appendChild(head);
+          const inputRow = document.createElement('div');
+          inputRow.className = 'sv-ai-input-row';
+          const lbl = document.createElement('label');
+          lbl.setAttribute('for', 'svCorrectInput');
+          lbl.textContent = opts.inputLabel;
+          const slider = document.createElement('input');
+          slider.type = 'range';
+          slider.min = String(opts.min);
+          slider.max = String(opts.max);
+          slider.step = '1';
+          slider.value = String(Math.round(opts.predValue));
+          const num = document.createElement('input');
+          num.type = 'number';
+          num.id = 'svCorrectInput';
+          num.min = String(opts.min);
+          num.max = String(opts.max);
+          num.value = String(Math.round(opts.predValue));
+          slider.addEventListener('input', () => { num.value = slider.value; });
+          num.addEventListener('input', () => {
+            const v = Math.max(opts.min, Math.min(opts.max, parseInt(num.value, 10) || opts.min));
+            slider.value = String(v);
+          });
+          const ok = document.createElement('button');
+          ok.type = 'button';
+          ok.className = 'sv-ai-btn is-yes';
+          ok.textContent = 'Save';
+          inputRow.appendChild(lbl);
+          inputRow.appendChild(slider);
+          inputRow.appendChild(num);
+          inputRow.appendChild(ok);
+          aiStageEl.appendChild(inputRow);
+          ok.addEventListener('click', () => {
+            const v = Math.max(opts.min, Math.min(opts.max, parseInt(num.value, 10) || opts.min));
+            resolve(v);
+          });
+        });
+      });
+    }
+
+    async function postJson(path, body) {
+      const r = await fetch(API_URL + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        let detail = '';
+        try { detail = (await r.json()).error || ''; } catch (_e) {}
+        throw new Error('HTTP ' + r.status + (detail ? ' - ' + detail : ''));
+      }
+      return r.json();
+    }
+
+    function renderDone(summary) {
+      clearStage();
+      const head = document.createElement('p');
+      head.className = 'sv-ai-done-headline';
+      head.textContent = "Thanks for playing.";
+      const sub = document.createElement('p');
+      sub.className = 'sv-ai-done-sub';
+      const score = summary.correct + ' of 3 guesses were right.';
+      sub.textContent = score + ' Your answers train the next version.';
+      const row = document.createElement('div');
+      row.className = 'sv-ai-options';
+      const shareBtn = document.createElement('button');
+      shareBtn.type = 'button';
+      shareBtn.className = 'sv-ai-btn is-yes';
+      shareBtn.textContent = 'Share';
+      const againBtn = document.createElement('button');
+      againBtn.type = 'button';
+      againBtn.className = 'sv-ai-btn is-no';
+      againBtn.textContent = 'Run it again';
+      row.appendChild(shareBtn);
+      row.appendChild(againBtn);
+      const wrap = document.createElement('div');
+      wrap.className = 'sv-ai-done';
+      wrap.appendChild(head);
+      wrap.appendChild(sub);
+      wrap.appendChild(row);
+      aiStageEl.appendChild(wrap);
+
+      shareBtn.addEventListener('click', () => onShare(summary, shareBtn));
+      againBtn.addEventListener('click', () => {
+        overlayEl.classList.add('is-hidden');
+        startSurvey();
+        window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+      });
+    }
+
+    function onShare(summary, btn) {
+      const shareData = {
+        title: 'Color Polygraph',
+        text: 'The color polygraph guessed ' + summary.correct + '/3 of my gender, mood, and age from 21 colour picks.',
+        url: window.location.origin + window.location.pathname,
+      };
+      if (navigator.share) {
+        navigator.share(shareData).catch(() => {});
+        return;
+      }
+      const text = shareData.text + ' ' + shareData.url;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+          const toast = document.createElement('p');
+          toast.className = 'sv-share-toast';
+          toast.textContent = 'Link copied to clipboard';
+          btn.parentNode.parentNode.appendChild(toast);
+          setTimeout(() => toast.remove(), 2400);
+        }).catch(() => {
+          window.prompt('Copy the link:', text);
+        });
+      } else {
+        window.prompt('Copy the link:', text);
+      }
+    }
+
+    function moodLabelFor(value) {
+      if (value >= 45) return 'happy';
+      if (value >= 30) return 'okay';
+      if (value >= 15) return 'down';
+      return 'glum';
+    }
+
+    async function runInferenceFlow() {
+      const summary = { correct: 0 };
+      let surveyId = null;
+      let features = null;
+
+      // ---- submit ----
+      setProgress('gender', []);
+      renderLoading('Sending picks to the model...');
+      try {
+        const submitResp = await postJson('/survey', {
+          payload: buildPayload(),
+          metadata: buildMetadata(),
+        });
+        surveyId = submitResp.id;
+        features = submitResp.features;
+      } catch (err) {
+        console.warn('submit failed', err);
+        renderError('Could not reach the inference server. Try again in a moment.');
+        return;
+      }
+
+      // ---- gender ----
+      try {
+        renderLoading('Downloading gender model...');
+        const model = await loadModel('gender');
+        const raw = TreeWalker.score(model, features.gender);
+        const prob = TreeWalker.sigmoid(raw);
+        const predLabel = prob >= 0.5 ? 'girl' : 'boy';
+        const confirmed = await renderConfirmGender(predLabel, prob);
+        if (confirmed === predLabel) summary.correct += 1;
+        await postJson('/survey/' + encodeURIComponent(surveyId) + '/gender', {
+          pred_prob: prob, confirmed_label: confirmed,
+        });
+      } catch (err) {
+        console.warn('gender step failed', err);
+        renderError('Gender step failed: ' + err.message);
+        return;
+      }
+
+      // ---- mood ----
+      setProgress('mood', ['gender']);
+      try {
+        renderLoading('Downloading mood model...');
+        const model = await loadModel('mood');
+        let value = TreeWalker.score(model, features.mood);
+        value = Math.max(0, Math.min(60, value));
+        const label = moodLabelFor(value);
+        const confirmed = await renderConfirmNumeric({
+          prompt: 'You feel <b>' + label + '</b> &mdash; about <b>' + Math.round(value) + '</b> out of 60.',
+          predValue: value,
+          inputLabel: 'Actual mood (0 sad &mdash; 60 happy):',
+          min: 0,
+          max: 60,
+        });
+        if (Math.abs(confirmed - value) <= 10) summary.correct += 1;
+        await postJson('/survey/' + encodeURIComponent(surveyId) + '/mood', {
+          pred_value: value, confirmed_value: confirmed,
+        });
+      } catch (err) {
+        console.warn('mood step failed', err);
+        renderError('Mood step failed: ' + err.message);
+        return;
+      }
+
+      // ---- age ----
+      setProgress('age', ['gender', 'mood']);
+      try {
+        renderLoading('Downloading age model...');
+        const model = await loadModel('age');
+        let value = TreeWalker.score(model, features.age);
+        value = Math.max(6, Math.min(80, value));
+        const confirmed = await renderConfirmNumeric({
+          prompt: 'You are about <b>' + Math.round(value) + '</b> years old.',
+          predValue: value,
+          inputLabel: 'Actual age:',
+          min: 6,
+          max: 99,
+        });
+        if (Math.abs(confirmed - value) <= 3) summary.correct += 1;
+        await postJson('/survey/' + encodeURIComponent(surveyId) + '/age', {
+          pred_value: value, confirmed_value: confirmed,
+        });
+      } catch (err) {
+        console.warn('age step failed', err);
+        renderError('Age step failed: ' + err.message);
+        return;
+      }
+
+      setProgress(null, ['gender', 'mood', 'age']);
+      renderDone(summary);
+    }
+
+    startBtn.addEventListener('click', () => {
+      ctaWrap.style.display = 'none';
+      overlayEl.classList.remove('is-hidden');
+      startSurvey();
+    });
+
+    overlayEl.addEventListener('click', () => {
+      overlayEl.classList.add('is-hidden');
+    });
+
+    restartBtn.addEventListener('click', () => {
+      overlayEl.classList.add('is-hidden');
+      startSurvey();
+      window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+    });
+  })();
+  </script>
+</body>
+</html>

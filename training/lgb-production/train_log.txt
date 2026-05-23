@@ -1,0 +1,35 @@
+C:\Users\andre\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2749: UserWarning: X does not have valid feature names, but LGBMClassifier was fitted with feature names
+  warnings.warn(
+C:\Users\andre\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2749: UserWarning: X does not have valid feature names, but LGBMRegressor was fitted with feature names
+  warnings.warn(
+C:\Users\andre\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\utils\validation.py:2749: UserWarning: X does not have valid feature names, but LGBMRegressor was fitted with feature names
+  warnings.warn(
+Loading static features + targets...
+  X_static (6710, 474)  gender boys/girls 2758/3952
+Computing per-session bucket vectors (8x8x8 RGB)...
+  shapes (6710, 512), (6710, 512)  (2.6s)
+  train idx [0..5999], 6000 rows, 0.590 girls
+  val   idx [6000..6709], 710 rows, 0.585 girls
+
+Fitting GENDER (LGB champion config, n_train=6000)...
+  AUC=0.8997  acc=0.8423  F1=0.8634  (22.9s)
+Fitting AGE...
+  MAE=7.289  R2=-0.254  (23.4s)
+Fitting MOOD...
+  MAE=10.368  R2=+0.208  (15.1s)
+
+Emitting Python (cloudflare/models/) + JSON (models-js/) ...
+  gender  py= 3029.8 KB  json= 2829.3 KB  trees=800 nodes=100000  |delta|<0.0e+00  (3.1s)
+  age     py= 3766.0 KB  json= 3515.6 KB  trees=1000 nodes=125000  |delta|<0.0e+00  (3.5s)
+  mood    py= 3759.2 KB  json= 3508.8 KB  trees=1000 nodes=125000  |delta|<0.0e+00  (3.8s)
+  bucket_data.py  45.8 KB
+
+Validation (last 710 sessions, temporal hold-out)
+  GENDER AUC = 0.8997   acc = 0.8423   F1 = 0.8634
+  AGE    MAE = 7.289   R2 = -0.254
+  MOOD   MAE = 10.368   R2 = +0.208
+
+Wrote artifacts to:
+  C:\Users\andre\Documents\portfolio_private\ai\color-polygraph\cloudflare\models
+  C:\Users\andre\Documents\portfolio_private\ai\color-polygraph\models-js
+Total wall time: 74.5s

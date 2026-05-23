@@ -1,0 +1,8 @@
+{
+  "stacked_mae": 8.958674430847168,
+  "stacked_r2": 0.23109114170074463,
+  "n_base_models_in_stack": 9,
+  "stacker": "L1-NNLS-blend",
+  "best_lgb_mae": 9.173044204711914,
+  "best_xgb_mae": 8.98757553100586
+}

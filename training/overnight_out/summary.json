@@ -1,11 +1,9 @@
 {
-  "gender": {
-    "stacked_auc": 0.8645667884079585,
-    "stacked_acc_at_0.5": 0.797317436661699,
-    "stacked_acc_tuned": 0.797317436661699,
-    "stacked_threshold": 0.4725000000000001,
-    "stacked_f1": 0.8351914687348522,
-    "n_base_models_in_stack": 2,
-    "best_lgb_auc": 0.8706392041701285
+  "mood": {
+    "stacked_mae": 9.011087417602539,
+    "stacked_r2": 0.2351667284965515,
+    "n_base_models_in_stack": 9,
+    "best_lgb_mae": 9.173044204711914,
+    "best_xgb_mae": 8.98757553100586
   }
 }

@@ -1,0 +1,27 @@
+name = "color-polygraph-api"
+main = "worker.py"
+compatibility_date = "2025-05-01"
+compatibility_flags = ["python_workers"]
+
+# Bind the D1 database. Create it with:
+#   wrangler d1 create color-polygraph
+# Then paste the returned database_id below.
+[[d1_databases]]
+binding = "DB"
+database_name = "color-polygraph"
+database_id = "REPLACE-WITH-D1-ID-FROM-WRANGLER-CREATE"
+
+# Public configuration. Add any extra static origins (comma-separated) you
+# want to allow CORS from.
+[vars]
+ALLOWED_ORIGINS = "https://andreaslindeman.com,https://andreaslindeman.no,https://ai.andreaslindeman.com"
+
+# IP_HASH_SALT must be set as a secret, not in vars:
+#   wrangler secret put IP_HASH_SALT
+
+# Route a custom domain to the worker (after you add the zone to your CF
+# account). Until that's done, the worker is reachable at
+# https://color-polygraph-api.<your-subdomain>.workers.dev
+# [[routes]]
+# pattern = "api.andreaslindeman.com/*"
+# zone_name = "andreaslindeman.com"

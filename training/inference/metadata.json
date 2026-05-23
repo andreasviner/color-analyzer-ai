@@ -1,0 +1,19 @@
+{
+  "trained_at": "2026-05-23T08:52:44.270645+00:00",
+  "rows": 6710,
+  "n_features": {
+    "gender": 477,
+    "age": 475,
+    "mood": 475
+  },
+  "target_stats": {
+    "gender_girl_frac": 0.5889716840536513,
+    "age_min": 6,
+    "age_max": 68,
+    "age_mean": 20.837555886736215,
+    "mood_min": 0,
+    "mood_max": 60,
+    "mood_mean": 18.08703427719821
+  },
+  "seed": 42
+}
