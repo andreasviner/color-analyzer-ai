@@ -1,7 +1,7 @@
 """
 Cloudflare Workers Python entrypoint for the Color Polygraph survey.
 
-Four endpoints, all under `https://api.andreaslindeman.com` (or whatever route
+Endpoints, all under `https://api.andreaslindeman.com` (or whatever route
 the survey.html `API_BASE` points at):
 
     POST /color-polygraph/survey
@@ -9,6 +9,11 @@ the survey.html `API_BASE` points at):
         Saves the row to D1, computes the three feature vectors server-side,
         attaches IP hash + Cloudflare geo, returns `{id, features}` so the
         browser can run gender inference first.
+
+    GET /color-polygraph/survey/:id
+        Returns the stored survey result by ID for the shareable result link
+        (survey-result.html?id=...). Returns winner color, confirmed gender /
+        age / mood, correct count, simplified pick history.
 
     POST /color-polygraph/survey/:id/gender
         Body: {pred_prob, pred_label, confirmed_label}
@@ -270,6 +275,103 @@ async def _handle_age_confirm(request, env, survey_id):
     return _json_response({"ok": True}, request, env)
 
 
+async def _handle_get_survey(request, env, survey_id):
+    """Return stored survey result for shareable link (GET /survey/:id)."""
+    try:
+        row = await env.DB.prepare("""
+            SELECT final_color_json, r1_json, r2_json, tider_json, valg,
+                   confirmed_gender, pred_gender_prob,
+                   confirmed_age,    pred_age,
+                   confirmed_mood,   pred_mood
+              FROM surveys WHERE id = ?
+        """).bind(survey_id).first()
+    except Exception as exc:
+        return _error(f"db error: {exc}", request, env, status=500)
+
+    if row is None:
+        return _error("survey not found", request, env, status=404)
+
+    # Pyodide returns a JsProxy — convert to plain dict.
+    try:
+        row = row.to_py()
+    except AttributeError:
+        pass
+
+    def _parse(key):
+        raw = row.get(key) if isinstance(row, dict) else getattr(row, key, None)
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            return json.loads(raw)
+        return raw
+
+    def _val(key):
+        return row.get(key) if isinstance(row, dict) else getattr(row, key, None)
+
+    final = _parse("final_color_json")
+    r1    = _parse("r1_json") or []
+    r2    = _parse("r2_json") or []
+    tider = _parse("tider_json") or []
+    valg  = _val("valg") or ""
+
+    if not final or len(final) < 3:
+        return _error("survey data incomplete", request, env, status=422)
+
+    def _color(rgb):
+        r, g, b = int(rgb[0]), int(rgb[1]), int(rgb[2])
+        return {"rgb": [r, g, b], "hex": "#{:02x}{:02x}{:02x}".format(r, g, b)}
+
+    winner = _color(final)
+
+    # Simplified history — enough to reconstruct the hue strip.
+    history = [
+        [{"winner": _color(c), "options": []} for c in r1 if c],
+        [{"winner": _color(c), "options": []} for c in r2 if c],
+        [{"winner": winner, "options": []}],
+    ]
+
+    picks = [
+        {"position": int(valg[i]), "cumulativeMs": tider[i]}
+        for i in range(min(len(valg), len(tider)))
+    ]
+
+    confirmed_gender_int = _val("confirmed_gender")
+    confirmed_gender = (
+        "girl" if confirmed_gender_int == 1
+        else "boy" if confirmed_gender_int == 0
+        else None
+    )
+    confirmed_age  = _val("confirmed_age")
+    confirmed_mood = _val("confirmed_mood")
+    pred_gender_prob = _val("pred_gender_prob")
+    pred_age   = _val("pred_age")
+    pred_mood  = _val("pred_mood")
+
+    correct = None
+    if confirmed_gender is not None and confirmed_age is not None and confirmed_mood is not None:
+        correct = 0
+        if pred_gender_prob is not None:
+            pred_label = "girl" if float(pred_gender_prob) >= 0.5 else "boy"
+            if confirmed_gender == pred_label:
+                correct += 1
+        if pred_age is not None and abs(int(confirmed_age) - float(pred_age)) <= 3:
+            correct += 1
+        if pred_mood is not None and abs(int(confirmed_mood) - float(pred_mood)) <= 10:
+            correct += 1
+
+    return _json_response({
+        "id": survey_id,
+        "winner_hex": winner["hex"],
+        "winner_rgb": winner["rgb"],
+        "confirmed_gender": confirmed_gender,
+        "confirmed_age":    int(confirmed_age)  if confirmed_age  is not None else None,
+        "confirmed_mood":   int(confirmed_mood) if confirmed_mood is not None else None,
+        "correct_count": correct,
+        "history": history,
+        "picks": picks,
+    }, request, env)
+
+
 def _row_was_updated(result) -> bool:
     """D1 returns a meta object with `changes` in JS. Pyodide returns a JsProxy."""
     try:
@@ -304,6 +406,13 @@ async def on_fetch(request, env, ctx=None):
 
     if path == "/color-polygraph/survey" and method == "POST":
         return await _handle_submit(request, env)
+
+    # /color-polygraph/survey/{id}  — GET returns stored result for share link
+    if path.startswith("/color-polygraph/survey/") and method == "GET":
+        parts = path.strip("/").split("/")
+        if len(parts) == 3:
+            survey_id = parts[2]
+            return await _handle_get_survey(request, env, survey_id)
 
     # /color-polygraph/survey/{id}/{step}
     if path.startswith("/color-polygraph/survey/") and method == "POST":
