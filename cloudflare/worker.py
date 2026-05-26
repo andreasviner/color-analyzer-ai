@@ -203,13 +203,13 @@ async def _handle_gender_confirm(request, env, survey_id):
         return _error(str(exc), request, env, status=400)
 
     confirmed = _get(body, "confirmed_label")
-    if confirmed not in ("boy", "girl"):
-        return _error("confirmed_label must be 'boy' or 'girl'", request, env, status=400)
+    if confirmed not in ("man", "woman"):
+        return _error("confirmed_label must be 'man' or 'woman'", request, env, status=400)
     try:
         pred_prob_f = float(_get(body, "pred_prob"))
     except (TypeError, ValueError):
         return _error("pred_prob must be a number", request, env, status=400)
-    confirmed_int = 1 if confirmed == "girl" else 0
+    confirmed_int = 1 if confirmed == "woman" else 0
 
     result = await env.DB.prepare("""
         UPDATE surveys
@@ -337,8 +337,8 @@ async def _handle_get_survey(request, env, survey_id):
 
     confirmed_gender_int = _val("confirmed_gender")
     confirmed_gender = (
-        "girl" if confirmed_gender_int == 1
-        else "boy" if confirmed_gender_int == 0
+        "woman" if confirmed_gender_int == 1
+        else "man" if confirmed_gender_int == 0
         else None
     )
     confirmed_age  = _val("confirmed_age")
@@ -351,7 +351,7 @@ async def _handle_get_survey(request, env, survey_id):
     if confirmed_gender is not None and confirmed_age is not None and confirmed_mood is not None:
         correct = 0
         if pred_gender_prob is not None:
-            pred_label = "girl" if float(pred_gender_prob) >= 0.5 else "boy"
+            pred_label = "woman" if float(pred_gender_prob) >= 0.5 else "man"
             if confirmed_gender == pred_label:
                 correct += 1
         if pred_age is not None and abs(int(confirmed_age) - float(pred_age)) <= 3:
