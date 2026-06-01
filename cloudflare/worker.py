@@ -170,8 +170,12 @@ async def _handle_submit(request, env):
     city    = getattr(cf, "city",    None) if cf else None
     tz_cf   = getattr(cf, "timezone", None) if cf else None
 
-    # r3_json holds the 4 finalists of the long survey; it stays NULL for short ones.
-    r3_json = json.dumps(payload["r3"]) if is_long else None
+    # r3_json holds the 4 finalists of the long survey. Short surveys have no r3
+    # round; store an empty JSON array rather than a bound None — the Python
+    # Workers D1 driver maps a bound None to JS `undefined`, which D1 rejects
+    # ("D1_TYPE_ERROR: Type 'undefined' not supported"). "[]" reads back as []
+    # everywhere we parse r3_json, and short rows are identified by long_survey=0.
+    r3_json = json.dumps(payload["r3"]) if is_long else "[]"
 
     # Persist. Wrapped so a DB error (e.g. a missing column before the schema
     # migration has run) surfaces as a CORS-tagged JSON 500 instead of an
