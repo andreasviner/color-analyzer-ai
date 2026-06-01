@@ -173,42 +173,47 @@ async def _handle_submit(request, env):
     # r3_json holds the 4 finalists of the long survey; it stays NULL for short ones.
     r3_json = json.dumps(payload["r3"]) if is_long else None
 
-    # Persist
-    await env.DB.prepare("""
-        INSERT INTO surveys (
-            id, server_received_at, client_started_at, client_submitted_at, client_local_time,
-            offered_json, r1_json, r2_json, r3_json, final_color_json, valg, tider_json,
-            long_survey,
-            user_agent, referrer, language, locale, is_mobile,
-            screen_w, screen_h, viewport_w, viewport_h, timezone_client,
-            ip_hash, country, region, city, timezone_cf
-        ) VALUES (?,?,?,?,?, ?,?,?,?,?,?,?, ?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?)
-    """).bind(
-        survey_id, server_received_at,
-        _get(metadata, "client_started_at"),
-        _get(metadata, "client_submitted_at"),
-        _get(metadata, "client_local_time"),
-        json.dumps(payload["offered"]),
-        json.dumps(payload["r1"]),
-        json.dumps(payload["r2"]),
-        r3_json,
-        json.dumps(payload["final"]),
-        payload["valg"],
-        json.dumps(payload["tider"]),
-        _truthy(is_long),
-        _get(metadata, "user_agent"),
-        _get(metadata, "referrer"),
-        _get(metadata, "language"),
-        _get(metadata, "locale"),
-        _truthy(_get(metadata, "is_mobile")),
-        _get(metadata, "screen_w"),
-        _get(metadata, "screen_h"),
-        _get(metadata, "viewport_w"),
-        _get(metadata, "viewport_h"),
-        _get(metadata, "timezone_client"),
-        ip_hash,
-        country, region, city, tz_cf,
-    ).run()
+    # Persist. Wrapped so a DB error (e.g. a missing column before the schema
+    # migration has run) surfaces as a CORS-tagged JSON 500 instead of an
+    # unhandled exception, which the browser would only see as a CORS failure.
+    try:
+        await env.DB.prepare("""
+            INSERT INTO surveys (
+                id, server_received_at, client_started_at, client_submitted_at, client_local_time,
+                offered_json, r1_json, r2_json, r3_json, final_color_json, valg, tider_json,
+                long_survey,
+                user_agent, referrer, language, locale, is_mobile,
+                screen_w, screen_h, viewport_w, viewport_h, timezone_client,
+                ip_hash, country, region, city, timezone_cf
+            ) VALUES (?,?,?,?,?, ?,?,?,?,?,?,?, ?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?)
+        """).bind(
+            survey_id, server_received_at,
+            _get(metadata, "client_started_at"),
+            _get(metadata, "client_submitted_at"),
+            _get(metadata, "client_local_time"),
+            json.dumps(payload["offered"]),
+            json.dumps(payload["r1"]),
+            json.dumps(payload["r2"]),
+            r3_json,
+            json.dumps(payload["final"]),
+            payload["valg"],
+            json.dumps(payload["tider"]),
+            _truthy(is_long),
+            _get(metadata, "user_agent"),
+            _get(metadata, "referrer"),
+            _get(metadata, "language"),
+            _get(metadata, "locale"),
+            _truthy(_get(metadata, "is_mobile")),
+            _get(metadata, "screen_w"),
+            _get(metadata, "screen_h"),
+            _get(metadata, "viewport_w"),
+            _get(metadata, "viewport_h"),
+            _get(metadata, "timezone_client"),
+            ip_hash,
+            country, region, city, tz_cf,
+        ).run()
+    except Exception as exc:
+        return _error(f"db insert failed: {exc}", request, env, status=500)
 
     resp = {"id": survey_id}
     if features is not None:
@@ -277,13 +282,13 @@ async def _handle_age_confirm(request, env, survey_id):
     except ValueError as exc:
         return _error(str(exc), request, env, status=400)
 
+    # No range/clamp on the confirmed age: store whatever number the user gave
+    # (even nonsense like -20) so non-serious commits can be filtered out later.
     try:
         pred_value = float(_get(body, "pred_value"))
         confirmed = int(_get(body, "confirmed_value"))
     except (TypeError, ValueError):
         return _error("pred_value and confirmed_value must be numbers", request, env, status=400)
-    if not (6 <= confirmed <= 99):
-        return _error("confirmed_value must be 6..99", request, env, status=400)
 
     result = await env.DB.prepare("""
         UPDATE surveys
