@@ -49,7 +49,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TRAINING_DIR = os.path.normpath(os.path.join(HERE, ".."))
 PROJECT_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 CF_DIR = os.path.join(PROJECT_ROOT, "cloudflare")
-JS_OUT_DIR = os.path.join(PROJECT_ROOT, "models-js")
+# Trees ship from the static site, alongside the short trees + tree_walker.js
+# that survey-result.html fetches via ./models-js/.
+JS_OUT_DIR = os.path.normpath(
+    os.path.join(PROJECT_ROOT, "..", "english_html", "color-polygraph", "models-js"))
 RAW_SOURCE = os.path.join(TRAINING_DIR, "raw", "save.ligma")
 os.makedirs(JS_OUT_DIR, exist_ok=True)
 
