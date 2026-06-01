@@ -35,6 +35,16 @@ N_R1 = 16
 N_R2 = 4
 VOXEL_GRID = 4  # 4x4x4 = 64 buckets for the round-1 pick histogram
 
+# Long-survey variant: a 256-color bracket with one extra elimination round.
+#   offered(256) -> r1(64) -> r2(16) -> r3(4) -> final(1), 85 questions total.
+# It has no feature extractor / model yet (a dedicated long model is planned);
+# for now the worker only validates the shape and stores the raw rounds.
+N_LONG_OFFERED = 256
+N_LONG_R1 = 64
+N_LONG_R2 = 16
+N_LONG_R3 = 4
+N_LONG_QUESTIONS = 85
+
 REFERENCE_COLORS = (
     ("pink",   (255, 182, 193)),
     ("red",    (220,  40,  40)),
@@ -726,3 +736,26 @@ def validate_payload(payload: Dict) -> None:
         raise ValueError(f"valg must be {N_QUESTIONS} digits")
     if len(payload["tider"]) < N_QUESTIONS:
         raise ValueError(f"tider must have {N_QUESTIONS} entries")
+
+
+def validate_long_payload(payload: Dict) -> None:
+    """Shape check for the 256-color long survey. No features are computed for
+    it yet, so this only guarantees the rounds are storable and well-formed."""
+    required = ("offered", "r1", "r2", "r3", "final", "valg", "tider")
+    for k in required:
+        if k not in payload:
+            raise ValueError(f"missing key: {k}")
+    if len(payload["offered"]) != N_LONG_OFFERED:
+        raise ValueError(f"offered must have {N_LONG_OFFERED} entries, got {len(payload['offered'])}")
+    if len(payload["r1"]) != N_LONG_R1:
+        raise ValueError(f"r1 must have {N_LONG_R1} entries, got {len(payload['r1'])}")
+    if len(payload["r2"]) != N_LONG_R2:
+        raise ValueError(f"r2 must have {N_LONG_R2} entries, got {len(payload['r2'])}")
+    if len(payload["r3"]) != N_LONG_R3:
+        raise ValueError(f"r3 must have {N_LONG_R3} entries, got {len(payload['r3'])}")
+    if len(payload["final"]) != 3:
+        raise ValueError("final must be [r,g,b]")
+    if len(payload["valg"]) < N_LONG_QUESTIONS:
+        raise ValueError(f"valg must be {N_LONG_QUESTIONS} digits")
+    if len(payload["tider"]) < N_LONG_QUESTIONS:
+        raise ValueError(f"tider must have {N_LONG_QUESTIONS} entries")

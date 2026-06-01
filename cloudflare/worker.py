@@ -47,7 +47,8 @@ import uuid
 
 from workers import Response
 
-from features import compute_features, validate_payload
+from features import compute_features, validate_payload, validate_long_payload
+from features_long import compute_features_long
 
 
 # ---------- CORS ----------
@@ -132,17 +133,29 @@ async def _handle_submit(request, env):
     payload = _get(body, "payload") or {}
     metadata = _get(body, "metadata") or {}
 
-    try:
-        validate_payload(payload)
-    except ValueError as exc:
-        return _error(f"invalid payload: {exc}", request, env, status=400)
+    is_long = bool(_get(payload, "long"))
 
     submit_unix = int(_get(metadata, "client_submitted_at", 0) or time.time() * 1000) // 1000
 
-    try:
-        features = compute_features(payload, submit_unix)
-    except Exception as exc:
-        return _error(f"feature extraction failed: {exc}", request, env, status=500)
+    if is_long:
+        # Long survey: deeper bracket, its own feature extractor + models.
+        try:
+            validate_long_payload(payload)
+        except ValueError as exc:
+            return _error(f"invalid payload: {exc}", request, env, status=400)
+        try:
+            features = compute_features_long(payload, submit_unix)
+        except Exception as exc:
+            return _error(f"feature extraction failed: {exc}", request, env, status=500)
+    else:
+        try:
+            validate_payload(payload)
+        except ValueError as exc:
+            return _error(f"invalid payload: {exc}", request, env, status=400)
+        try:
+            features = compute_features(payload, submit_unix)
+        except Exception as exc:
+            return _error(f"feature extraction failed: {exc}", request, env, status=500)
 
     survey_id = str(uuid.uuid4())
     server_received_at = int(time.time() * 1000)
@@ -157,15 +170,19 @@ async def _handle_submit(request, env):
     city    = getattr(cf, "city",    None) if cf else None
     tz_cf   = getattr(cf, "timezone", None) if cf else None
 
+    # r3_json holds the 4 finalists of the long survey; it stays NULL for short ones.
+    r3_json = json.dumps(payload["r3"]) if is_long else None
+
     # Persist
     await env.DB.prepare("""
         INSERT INTO surveys (
             id, server_received_at, client_started_at, client_submitted_at, client_local_time,
-            offered_json, r1_json, r2_json, final_color_json, valg, tider_json,
+            offered_json, r1_json, r2_json, r3_json, final_color_json, valg, tider_json,
+            long_survey,
             user_agent, referrer, language, locale, is_mobile,
             screen_w, screen_h, viewport_w, viewport_h, timezone_client,
             ip_hash, country, region, city, timezone_cf
-        ) VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?)
+        ) VALUES (?,?,?,?,?, ?,?,?,?,?,?,?, ?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?)
     """).bind(
         survey_id, server_received_at,
         _get(metadata, "client_started_at"),
@@ -174,9 +191,11 @@ async def _handle_submit(request, env):
         json.dumps(payload["offered"]),
         json.dumps(payload["r1"]),
         json.dumps(payload["r2"]),
+        r3_json,
         json.dumps(payload["final"]),
         payload["valg"],
         json.dumps(payload["tider"]),
+        _truthy(is_long),
         _get(metadata, "user_agent"),
         _get(metadata, "referrer"),
         _get(metadata, "language"),
@@ -191,7 +210,10 @@ async def _handle_submit(request, env):
         country, region, city, tz_cf,
     ).run()
 
-    return _json_response({"id": survey_id, "features": features}, request, env)
+    resp = {"id": survey_id}
+    if features is not None:
+        resp["features"] = features
+    return _json_response(resp, request, env)
 
 
 # ---------- /color-polygraph/survey/:id/{gender,mood,age} ----------
@@ -279,7 +301,8 @@ async def _handle_get_survey(request, env, survey_id):
     """Return stored survey result for shareable link (GET /survey/:id)."""
     try:
         row = await env.DB.prepare("""
-            SELECT final_color_json, r1_json, r2_json, tider_json, valg,
+            SELECT final_color_json, r1_json, r2_json, r3_json, tider_json, valg,
+                   long_survey,
                    confirmed_gender, pred_gender_prob,
                    confirmed_age,    pred_age,
                    confirmed_mood,   pred_mood
@@ -311,8 +334,10 @@ async def _handle_get_survey(request, env, survey_id):
     final = _parse("final_color_json")
     r1    = _parse("r1_json") or []
     r2    = _parse("r2_json") or []
+    r3    = _parse("r3_json") or []
     tider = _parse("tider_json") or []
     valg  = _val("valg") or ""
+    long_survey = bool(_val("long_survey"))
 
     if not final or len(final) < 3:
         return _error("survey data incomplete", request, env, status=422)
@@ -323,12 +348,15 @@ async def _handle_get_survey(request, env, survey_id):
 
     winner = _color(final)
 
-    # Simplified history — enough to reconstruct the hue strip.
+    # Simplified history — enough to reconstruct the hue strip. The long survey
+    # has an extra round (r3) between r2 and the final winner.
     history = [
         [{"winner": _color(c), "options": []} for c in r1 if c],
         [{"winner": _color(c), "options": []} for c in r2 if c],
-        [{"winner": winner, "options": []}],
     ]
+    if r3:
+        history.append([{"winner": _color(c), "options": []} for c in r3 if c])
+    history.append([{"winner": winner, "options": []}])
 
     picks = [
         {"position": int(valg[i]), "cumulativeMs": tider[i]}
@@ -369,6 +397,7 @@ async def _handle_get_survey(request, env, survey_id):
         "correct_count": correct,
         "history": history,
         "picks": picks,
+        "long_survey": long_survey,
     }, request, env)
 
 

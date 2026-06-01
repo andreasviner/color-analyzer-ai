@@ -24,12 +24,16 @@ CREATE TABLE IF NOT EXISTS surveys (
     -- The 477-feature vectors are NOT stored here because they're deterministic from
     -- the raw payload + features.py; recomputing them at training time saves several
     -- KB per row.
-    offered_json          TEXT    NOT NULL,            -- 64 [r,g,b]
-    r1_json               TEXT    NOT NULL,            -- 16 [r,g,b]
-    r2_json               TEXT    NOT NULL,            -- 4  [r,g,b]
+    -- Sizes below are for the short survey; the long survey (long_survey = 1)
+    -- uses the same columns one bracket-tier wider:
+    --   offered 256, r1 64, r2 16, r3 4, final 1, valg/tider 85.
+    offered_json          TEXT    NOT NULL,            -- short 64 / long 256 [r,g,b]
+    r1_json               TEXT    NOT NULL,            -- short 16 / long 64  [r,g,b] (round-0 winners)
+    r2_json               TEXT    NOT NULL,            -- short 4  / long 16  [r,g,b] (round-1 winners)
+    r3_json               TEXT,                        -- long only: 4 finalists (round-2 winners); NULL for short
     final_color_json      TEXT    NOT NULL,            -- [r,g,b]
-    valg                  TEXT    NOT NULL,            -- 21 ASCII digits
-    tider_json            TEXT    NOT NULL,            -- 21 cumulative ms ints
+    valg                  TEXT    NOT NULL,            -- short 21 / long 85 ASCII digits
+    tider_json            TEXT    NOT NULL,            -- short 21 / long 85 cumulative ms ints
 
     -- client metadata
     user_agent            TEXT,
@@ -59,7 +63,10 @@ CREATE TABLE IF NOT EXISTS surveys (
     pred_mood             REAL,                        -- 0-60 prediction
     confirmed_mood        INTEGER,                     -- 0-60 truth
     pred_age              REAL,                        -- years prediction
-    confirmed_age         INTEGER                      -- years truth
+    confirmed_age         INTEGER,                     -- years truth
+
+    -- 1 = the 256-color long survey, 0 = the standard 64-color survey.
+    long_survey           INTEGER NOT NULL DEFAULT 0
 );
 
 -- Filter targets: rows that completed all three confirmations are the

@@ -1,0 +1,80 @@
+{
+  "trained_at": "2026-06-01T20:41:56.196996+00:00",
+  "kind": "long survey (256 colors) models",
+  "data": {
+    "source": "synthetic long rows = quads of short sessions (same gender+age, mood-sorted)",
+    "n_short_sessions": 6710,
+    "n_long_rows": 1724,
+    "n_padded_shorts": 186,
+    "quad_size": 4,
+    "label_mood": "mean of the 4 short moods"
+  },
+  "validation": {
+    "kind": "stratified random split",
+    "val_frac": 0.1,
+    "n_train": 1551,
+    "n_val": 173,
+    "seed": 42
+  },
+  "n_features": {
+    "gender": 237,
+    "age": 235,
+    "mood": 235
+  },
+  "validation_scores": {
+    "gender_auc": 0.9704501518917426,
+    "gender_accuracy": 0.9017341040462428,
+    "gender_f1": 0.916256157635468,
+    "age_mae": 6.783299218292591,
+    "age_r2": 0.42081530146735546,
+    "mood_mae": 10.676794751776464,
+    "mood_r2": 0.00035312500183470874
+  },
+  "champion_clf_params": {
+    "n_estimators": 800,
+    "num_leaves": 63,
+    "learning_rate": 0.03,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "min_child_samples": 20,
+    "reg_lambda": 1.0,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1
+  },
+  "champion_reg_params": {
+    "n_estimators": 1000,
+    "num_leaves": 63,
+    "learning_rate": 0.03,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "min_child_samples": 20,
+    "reg_lambda": 1.0,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1
+  },
+  "emit_stats": {
+    "gender_long": {
+      "json_kb": 1492.3,
+      "n_trees": 800,
+      "n_nodes": 52966,
+      "max_emit_delta": 0.0
+    },
+    "age_long": {
+      "json_kb": 2986.6,
+      "n_trees": 1000,
+      "n_nodes": 106132,
+      "max_emit_delta": 0.0
+    },
+    "mood_long": {
+      "json_kb": 2983.21,
+      "n_trees": 1000,
+      "n_nodes": 106068,
+      "max_emit_delta": 0.0
+    }
+  },
+  "seed": 42
+}
