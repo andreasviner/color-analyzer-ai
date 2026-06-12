@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-06-12T19:28:50.068192+00:00",
+  "trained_at": "2026-06-12T19:48:30.729750+00:00",
   "kind": "colour-pick model (prod person features + client-side candidate features)",
   "smoke": false,
   "n_sessions": 6711,
@@ -41,5 +41,11 @@
       "pick_acc": 0.5134007029876977,
       "leak_gate": 0.26384007029876977
     }
+  },
+  "emit": {
+    "json_kb": 5313.67,
+    "n_trees": 1500,
+    "n_nodes": 187500,
+    "max_emit_delta": 0.0
   }
 }
