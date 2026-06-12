@@ -30,6 +30,16 @@ Retrain: `python train_pick.py` (~8 min) — emits `models-js/pick_trees.json`
 (bit-exact verified), `pick_parity.json` (JS mirror check, must stay < 1e-5),
 `pick_summary.json`.
 
+**Long-survey variant** (`pick_features_long.py` + `train_pick_long.py`,
+~4 min): same construction on SYNTHETIC long rows (quads of shorts, same
+assembly as `long-models/train_long.py`), person = the 239-float
+`features_long` prod vector, probes drawn from the 64 round-0 questions.
+Holdout pick-accuracy **0.498** / leak gate 0.247. Emits
+`models-js/pick_long_trees.json`, `pick_long_parity.json`,
+`pick_long_summary.json`. The cube simulates 256-colour brackets
+(85 answers each) for long results; short-vs-long comparisons work via the
+mean-normalised profiles.
+
 Serve side:
 - Worker `GET /survey/:id` regenerates the feature vectors from the stored
   payload, so shared links can run the cube too.
