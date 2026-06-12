@@ -1,0 +1,45 @@
+{
+  "trained_at": "2026-06-12T19:28:50.068192+00:00",
+  "kind": "colour-pick model (prod person features + client-side candidate features)",
+  "smoke": false,
+  "n_sessions": 6711,
+  "probes_per_session": 8,
+  "n_rows": 214752,
+  "layout": {
+    "person": 479,
+    "candidate": 33,
+    "interaction": 17,
+    "total": 529
+  },
+  "params": {
+    "n_estimators": 1500,
+    "num_leaves": 63,
+    "learning_rate": 0.015,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "min_child_samples": 100,
+    "reg_lambda": 1.0,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1
+  },
+  "validation": {
+    "kind": "session-level split",
+    "val_frac": 0.1,
+    "seed": 42,
+    "chance": 0.25
+  },
+  "results": {
+    "A_person_cand": {
+      "auc": 0.7292657240573908,
+      "pick_acc": 0.507688927943761,
+      "leak_gate": 0.26384007029876977
+    },
+    "B_person_cand_inter": {
+      "auc": 0.732597344904965,
+      "pick_acc": 0.5134007029876977,
+      "leak_gate": 0.26384007029876977
+    }
+  }
+}

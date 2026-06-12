@@ -1,0 +1,46 @@
+{
+  "trained_at": "2026-06-12T18:13:58.461630+00:00",
+  "kind": "personal taste cube model (short survey)",
+  "data": {
+    "source": "raw/save.ligma short sessions",
+    "n_sessions": 6711,
+    "probes_per_session": 10,
+    "n_rows": 268440,
+    "positive_rate": 0.25
+  },
+  "feature_layout": {
+    "fingerprint": 34,
+    "candidate": 23,
+    "interaction": 17,
+    "total": 74
+  },
+  "validation": {
+    "kind": "session-level split",
+    "val_frac": 0.1,
+    "seed": 42,
+    "row_auc": 0.7230765976186397,
+    "holdout_pick_accuracy": 0.5,
+    "fingerprint_only_baseline": 0.25377855887521966,
+    "chance": 0.25
+  },
+  "champion_clf_params": {
+    "n_estimators": 1500,
+    "num_leaves": 63,
+    "learning_rate": 0.015,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "min_child_samples": 100,
+    "reg_lambda": 1.0,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1
+  },
+  "emit": {
+    "json_kb": 5222.46,
+    "n_trees": 1500,
+    "n_nodes": 187500,
+    "max_emit_delta": 0.0
+  },
+  "seed": 42
+}

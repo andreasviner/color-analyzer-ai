@@ -310,8 +310,8 @@ async def _handle_get_survey(request, env, survey_id):
     """Return stored survey result for shareable link (GET /survey/:id)."""
     try:
         row = await env.DB.prepare("""
-            SELECT final_color_json, r1_json, r2_json, r3_json, tider_json, valg,
-                   long_survey,
+            SELECT final_color_json, offered_json, r1_json, r2_json, r3_json, tider_json, valg,
+                   long_survey, client_submitted_at, server_received_at,
                    confirmed_gender, pred_gender_prob,
                    confirmed_age,    pred_age,
                    confirmed_mood,   pred_mood
@@ -341,6 +341,7 @@ async def _handle_get_survey(request, env, survey_id):
         return row.get(key) if isinstance(row, dict) else getattr(row, key, None)
 
     final = _parse("final_color_json")
+    offered = _parse("offered_json") or []
     r1    = _parse("r1_json") or []
     r2    = _parse("r2_json") or []
     r3    = _parse("r3_json") or []
@@ -350,6 +351,29 @@ async def _handle_get_survey(request, env, survey_id):
 
     if not final or len(final) < 3:
         return _error("survey data incomplete", request, env, status=422)
+
+    # Regenerate the model feature vectors from the stored payload, so a shared
+    # ?id= link can run the browser-side models (e.g. the colour-pick cube)
+    # exactly like a fresh submission. Best-effort: an old/odd row that fails
+    # extraction simply ships without features.
+    features = None
+    try:
+        payload = {
+            "offered": offered, "r1": r1, "r2": r2, "final": final,
+            "valg": valg, "tider": tider,
+        }
+        submit_ms = _val("client_submitted_at") or _val("server_received_at") or 0
+        submit_unix = int(submit_ms) // 1000
+        if long_survey:
+            payload["r3"] = r3
+            payload["long"] = True
+            validate_long_payload(payload)
+            features = compute_features_long(payload, submit_unix)
+        else:
+            validate_payload(payload)
+            features = compute_features(payload, submit_unix)
+    except Exception:
+        features = None
 
     def _color(rgb):
         r, g, b = int(rgb[0]), int(rgb[1]), int(rgb[2])
@@ -396,7 +420,7 @@ async def _handle_get_survey(request, env, survey_id):
         if pred_mood is not None and abs(int(confirmed_mood) - float(pred_mood)) <= 10:
             correct += 1
 
-    return _json_response({
+    resp = {
         "id": survey_id,
         "winner_hex": winner["hex"],
         "winner_rgb": winner["rgb"],
@@ -407,7 +431,10 @@ async def _handle_get_survey(request, env, survey_id):
         "history": history,
         "picks": picks,
         "long_survey": long_survey,
-    }, request, env)
+    }
+    if features is not None:
+        resp["features"] = features
+    return _json_response(resp, request, env)
 
 
 def _row_was_updated(result) -> bool:
