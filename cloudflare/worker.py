@@ -381,15 +381,25 @@ async def _handle_get_survey(request, env, survey_id):
 
     winner = _color(final)
 
-    # Simplified history — enough to reconstruct the hue strip. The long survey
-    # has an extra round (r3) between r2 and the final winner.
-    history = [
-        [{"winner": _color(c), "options": []} for c in r1 if c],
-        [{"winner": _color(c), "options": []} for c in r2 if c],
-    ]
+    # Full history, options included, so the result page can rebuild the
+    # "drawn to / passed over" split (and anything else) from a shared link
+    # exactly like a fresh run. Each round's questions are consecutive quads of
+    # the previous round's colours; the long survey has an extra round (r3).
+    def _quads(colors):
+        return [colors[i:i + 4] for i in range(0, len(colors), 4)]
+
+    def _round(winners, prev_colors):
+        opts = _quads(prev_colors) if prev_colors else []
+        return [
+            {"winner": _color(c),
+             "options": [_color(o) for o in (opts[i] if i < len(opts) else [])]}
+            for i, c in enumerate(winners) if c
+        ]
+
+    history = [_round(r1, offered), _round(r2, r1)]
     if r3:
-        history.append([{"winner": _color(c), "options": []} for c in r3 if c])
-    history.append([{"winner": winner, "options": []}])
+        history.append(_round(r3, r2))
+    history.append(_round([final], r3 if r3 else r2))
 
     picks = [
         {"position": int(valg[i]), "cumulativeMs": tider[i]}

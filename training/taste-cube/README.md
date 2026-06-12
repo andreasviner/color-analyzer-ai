@@ -1,4 +1,48 @@
-# Taste cube (personal colour-preference cube)
+# Colour-pick model + personal colour cube
+
+> **Current production model: `pick_*`** (prod person features + client-side
+> candidate descriptors), trained by `train_pick.py`, served as
+> `models-js/pick_trees.json` and rendered live by `models-js/pick_cube.js`.
+> The `taste_*` files below it are the earlier fingerprint-based experiment,
+> kept for reference (its `taste_features.js` colour math and interaction
+> block are still used by the pick pipeline).
+
+## Production: the colour-pick model
+
+Goal: a person took the survey; show them 4 NEW colours; predict which one
+they pick. Person = the 479-float prod feature vector the worker already
+returns for the gender/age/mood reveal (`features.gender` + age/mood bucket
+totals). Probe construction: a non-advancing round-0 question is overwritten
+with a duplicate of another loser question (quad + winner + pick digit), so
+the prod features computed from the modified session cannot contain the
+answer. Candidates get only client-computable descriptors: RGB, HSL, hue
+sin/cos, CMYK, LAB, YUV, warmth, chroma, 12 reference distances (+17
+interaction features vs the person's winning colours).
+
+Metrics (session-level 90/10 split, seed 42, chance = 0.25):
+
+| Variant | pick-accuracy | leak gate |
+|---|---|---|
+| A: person + candidate | 0.508 | 0.264 |
+| **B: + interactions (deployed)** | **0.513** | 0.264 |
+
+Retrain: `python train_pick.py` (~8 min) — emits `models-js/pick_trees.json`
+(bit-exact verified), `pick_parity.json` (JS mirror check, must stay < 1e-5),
+`pick_summary.json`.
+
+Serve side:
+- Worker `GET /survey/:id` regenerates the feature vectors from the stored
+  payload, so shared links can run the cube too.
+- `models-js/pick_features.js` mirrors the candidate + interaction blocks.
+- `models-js/pick_cube.js` lets the model retake the survey live in the
+  browser: survey-identical palette generation (Oklab farthest-point
+  sampling), full 64-16-4-1 brackets, 5,000 answered questions (~4 s,
+  yielding between brackets), tallied into the same voxel arrays as the
+  population cube and rendered as it fills, with a progress bar.
+
+---
+
+# Earlier experiment: taste cube (fingerprint model)
 
 Trains the model behind the **personal colour cube** on the survey result page
 (`ai/english_html/color-polygraph/survey-result.html`). The project page's cube
