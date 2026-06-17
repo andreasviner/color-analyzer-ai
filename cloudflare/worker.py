@@ -234,13 +234,14 @@ async def _handle_gender_confirm(request, env, survey_id):
         return _error(str(exc), request, env, status=400)
 
     confirmed = _get(body, "confirmed_label")
-    if confirmed not in ("man", "woman"):
-        return _error("confirmed_label must be 'man' or 'woman'", request, env, status=400)
+    if confirmed not in ("man", "woman", "non-binary"):
+        return _error("confirmed_label must be 'man', 'woman', or 'non-binary'", request, env, status=400)
     try:
         pred_prob_f = float(_get(body, "pred_prob"))
     except (TypeError, ValueError):
         return _error("pred_prob must be a number", request, env, status=400)
-    confirmed_int = 1 if confirmed == "woman" else 0
+    # 0 = man, 1 = woman, 2 = non-binary (outside the binary model's two classes).
+    confirmed_int = 2 if confirmed == "non-binary" else 1 if confirmed == "woman" else 0
 
     result = await env.DB.prepare("""
         UPDATE surveys
@@ -410,6 +411,7 @@ async def _handle_get_survey(request, env, survey_id):
     confirmed_gender = (
         "woman" if confirmed_gender_int == 1
         else "man" if confirmed_gender_int == 0
+        else "non-binary" if confirmed_gender_int == 2
         else None
     )
     confirmed_age  = _val("confirmed_age")
