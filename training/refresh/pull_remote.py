@@ -72,7 +72,16 @@ def _fetch_page(base, token, limit, offset, completed_only):
         "completed_only": "1" if completed_only else "0",
     })
     url = f"{base.rstrip('/')}/color-polygraph/export?{qs}"
-    req = urllib.request.Request(url, headers={"x-export-token": token})
+    # A browser-like User-Agent: Cloudflare's Bot Fight Mode / Browser Integrity
+    # Check rejects the default "Python-urllib/..." UA at the edge (error 1010)
+    # before the request reaches the worker.
+    req = urllib.request.Request(url, headers={
+        "x-export-token": token,
+        "user-agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/124.0.0.0 Safari/537.36"),
+        "accept": "application/json",
+    })
     try:
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
             return json.loads(resp.read().decode("utf-8"))

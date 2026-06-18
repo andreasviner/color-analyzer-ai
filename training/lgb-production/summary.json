@@ -1,15 +1,15 @@
 {
-  "trained_at": "2026-06-18T18:29:31.596270+00:00",
-  "n_total_rows": 6689,
+  "trained_at": "2026-06-18T18:50:23.881956+00:00",
+  "n_total_rows": 7043,
   "validation": {
     "kind": "stratified random split",
-    "n_train": 5979,
+    "n_train": 6333,
     "n_val": 710,
     "stratify": "gender",
     "seed": 42
   },
   "deployment": {
-    "fit_on_rows": 6689,
+    "fit_on_rows": 7043,
     "notes": "Final boosters re-fit on the full dataset after metrics were captured on the eval split; bucket grids are built from all rows."
   },
   "champion_clf_params": {
@@ -44,38 +44,38 @@
     "mood": 475
   },
   "target_stats": {
-    "gender_girl_frac": 0.5896247570638361,
+    "gender_girl_frac": 0.5726253017180178,
     "age_min": 6,
     "age_max": 68,
-    "age_mean": 20.716250560621916,
+    "age_mean": 21.224478205310238,
     "mood_min": 0,
     "mood_max": 60,
-    "mood_mean": 18.04529825085962
+    "mood_mean": 18.860854749396562
   },
   "validation_scores": {
-    "gender_auc": 0.8898293269033619,
-    "gender_accuracy": 0.8056338028169014,
-    "gender_f1": 0.839907192575406,
-    "age_mae": 6.77133054386383,
-    "age_r2": 0.2943034484165944,
-    "mood_mae": 8.785752569790334,
-    "mood_r2": 0.20711162195762134
+    "gender_auc": 0.911880377226912,
+    "gender_accuracy": 0.8380281690140845,
+    "gender_f1": 0.8629320619785459,
+    "age_mae": 5.848757473757383,
+    "age_r2": 0.4051143013063324,
+    "mood_mae": 8.787554935304438,
+    "mood_r2": 0.23652186598961822
   },
   "emit_stats": {
     "gender": {
-      "json_kb": 2827.51,
+      "json_kb": 2825.88,
       "n_trees": 800,
       "n_nodes": 100000,
       "max_emit_delta": 0.0
     },
     "age": {
-      "json_kb": 3513.73,
+      "json_kb": 3510.65,
       "n_trees": 1000,
       "n_nodes": 125000,
       "max_emit_delta": 0.0
     },
     "mood": {
-      "json_kb": 3505.41,
+      "json_kb": 3503.37,
       "n_trees": 1000,
       "n_nodes": 125000,
       "max_emit_delta": 0.0

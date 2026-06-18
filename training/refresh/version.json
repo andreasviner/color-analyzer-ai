@@ -5,9 +5,9 @@
     {
       "version": "1.1",
       "trained_at": "2026-06-18",
-      "n_rows": 6689,
-      "gender_auc": 0.89,
-      "age_mae": 6.77,
+      "n_rows": 7043,
+      "gender_auc": 0.912,
+      "age_mae": 5.85,
       "mood_mae": 8.79
     },
     {
