@@ -29,9 +29,16 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import KFold, StratifiedKFold
 
+import sys
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.normpath(os.path.join(HERE, ".."))
 SOURCE = os.path.join(DATA_DIR, "raw", "save.ligma")
+
+# Shared validity + troll filter: must match features.py exactly so X_extra
+# lines up row-for-row with features.npy.
+sys.path.insert(0, DATA_DIR)
+from data_cleaning import is_valid_clean  # noqa: E402
 
 N_FOLDS = 5
 SEED = 42
@@ -89,28 +96,9 @@ BOY_PROTO  = np.mean([srgb_to_lab(c) for c in BOY_PROTOTYPES_RGB],  axis=0)
 # ---------- Validation (identical to features.py) ----------
 
 def is_valid(row):
-    try:
-        if row[5] not in ("g", "j"):
-            return False
-        age = int(row[3])
-        if not (6 <= age <= 68):
-            return False
-        if row[8] == "no data":
-            return False
-        if len(row[8]) < 4:
-            return False
-        if len(row[8][0]) < 64 or len(row[8][1]) < 16 or len(row[8][2]) < 4:
-            return False
-        if len(row[7]) < N_QUESTIONS:
-            return False
-        total = int(row[7][-1])
-        if total < DURATION_MIN_MS or total > DURATION_MAX_MS:
-            return False
-        if not str(row[4]).lstrip("-").isdigit():
-            return False
-        return True
-    except Exception:
-        return False
+    # Shared filter — must match features.py exactly so X_extra lines up
+    # row-for-row with features.npy.
+    return is_valid_clean(row)
 
 
 # ---------- Extra feature extraction ----------

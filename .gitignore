@@ -1,0 +1,10 @@
+# Python bytecode caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Secrets and pulled live-data artifacts (never commit)
+.env
+training/refresh/remote_dump.json
+training/refresh/*.log
+training/raw/*.bak

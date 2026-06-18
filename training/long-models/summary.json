@@ -1,19 +1,22 @@
 {
-  "trained_at": "2026-06-01T20:41:56.196996+00:00",
+  "trained_at": "2026-06-18T18:30:15.905436+00:00",
   "kind": "long survey (256 colors) models",
   "data": {
-    "source": "synthetic long rows = quads of short sessions (same gender+age, mood-sorted)",
-    "n_short_sessions": 6710,
-    "n_long_rows": 1724,
-    "n_padded_shorts": 186,
+    "source": "synthetic long rows (quads of short sessions) + real long DB rows (heavier weight)",
+    "n_short_sessions": 6689,
+    "n_long_rows": 1719,
+    "n_synthetic": 1719,
+    "n_real": 0,
+    "real_long_weight": 3.0,
+    "n_padded_shorts": 187,
     "quad_size": 4,
     "label_mood": "mean of the 4 short moods"
   },
   "validation": {
     "kind": "stratified random split",
     "val_frac": 0.1,
-    "n_train": 1551,
-    "n_val": 173,
+    "n_train": 1547,
+    "n_val": 172,
     "seed": 42
   },
   "n_features": {
@@ -22,13 +25,13 @@
     "mood": 235
   },
   "validation_scores": {
-    "gender_auc": 0.9704501518917426,
-    "gender_accuracy": 0.9017341040462428,
-    "gender_f1": 0.916256157635468,
-    "age_mae": 6.783299218292591,
-    "age_r2": 0.42081530146735546,
-    "mood_mae": 10.676794751776464,
-    "mood_r2": 0.00035312500183470874
+    "gender_auc": 0.9739227443871148,
+    "gender_accuracy": 0.9186046511627907,
+    "gender_f1": 0.9313725490196079,
+    "age_mae": 7.139836707578725,
+    "age_r2": 0.33948415295219236,
+    "mood_mae": 10.441955246386769,
+    "mood_r2": 0.019822877823506557
   },
   "champion_clf_params": {
     "n_estimators": 800,
@@ -58,21 +61,21 @@
   },
   "emit_stats": {
     "gender_long": {
-      "json_kb": 1492.3,
+      "json_kb": 1489.31,
       "n_trees": 800,
-      "n_nodes": 52966,
+      "n_nodes": 52856,
       "max_emit_delta": 0.0
     },
     "age_long": {
-      "json_kb": 2986.6,
+      "json_kb": 2980.95,
       "n_trees": 1000,
-      "n_nodes": 106132,
+      "n_nodes": 105922,
       "max_emit_delta": 0.0
     },
     "mood_long": {
-      "json_kb": 2983.21,
+      "json_kb": 2978.57,
       "n_trees": 1000,
-      "n_nodes": 106068,
+      "n_nodes": 105924,
       "max_emit_delta": 0.0
     }
   },

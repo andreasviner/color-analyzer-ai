@@ -37,6 +37,7 @@ Two-pass procedure:
 
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone
 
@@ -56,8 +57,17 @@ RAW_SOURCE = os.path.join(TRAINING_DIR, "raw", "save.ligma")
 
 PROJECT_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 CF_DIR = os.path.join(PROJECT_ROOT, "cloudflare")
-JS_OUT_DIR = os.path.join(PROJECT_ROOT, "models-js")
+# Production trees ship from the static site that survey-result.html fetches
+# via ./models-js/ (same dir as the long + pick trees). PROJECT_ROOT is
+# ai/color-polygraph, the deployed site is ai/english_html/color-polygraph.
+JS_OUT_DIR = os.path.normpath(
+    os.path.join(PROJECT_ROOT, "..", "english_html", "color-polygraph", "models-js"))
 os.makedirs(JS_OUT_DIR, exist_ok=True)
+
+# Shared validity + troll filter (must match features.py so the re-parsed
+# bucket vectors line up row-for-row with features.npy).
+sys.path.insert(0, TRAINING_DIR)
+from data_cleaning import is_valid_clean  # noqa: E402
 
 SEED = 42
 N_R1 = 16
@@ -92,28 +102,8 @@ CHAMPION_REG = dict(
 # ---------- Validation + bucket helpers (same as color-buckets/train.py) ----------
 
 def _is_valid(row):
-    try:
-        if row[5] not in ("g", "j"):
-            return False
-        age = int(row[3])
-        if not (6 <= age <= 68):
-            return False
-        if row[8] == "no data":
-            return False
-        if len(row[8]) < 4:
-            return False
-        if len(row[8][0]) < 64 or len(row[8][1]) < 16 or len(row[8][2]) < 4:
-            return False
-        if len(row[7]) < N_QUESTIONS:
-            return False
-        total = int(row[7][-1])
-        if total < DURATION_MIN_MS or total > DURATION_MAX_MS:
-            return False
-        if not str(row[4]).lstrip("-").isdigit():
-            return False
-        return True
-    except Exception:
-        return False
+    # Shared filter — identical selection to features.py / features.npy.
+    return is_valid_clean(row)
 
 
 def _bucket_id(r, g, b):

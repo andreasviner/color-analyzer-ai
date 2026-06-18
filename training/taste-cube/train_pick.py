@@ -37,6 +37,9 @@ from train_taste import _emit_tree_json, _verify_json  # noqa: E402
 TRAINING_DIR = os.path.normpath(os.path.join(HERE, ".."))
 PROJECT_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 RAW_SOURCE = os.path.join(TRAINING_DIR, "raw", "save.ligma")
+
+sys.path.insert(0, TRAINING_DIR)
+from data_cleaning import is_valid_clean  # noqa: E402
 JS_OUT_DIR = os.path.normpath(
     os.path.join(PROJECT_ROOT, "..", "english_html", "color-polygraph", "models-js"))
 os.makedirs(JS_OUT_DIR, exist_ok=True)
@@ -62,19 +65,12 @@ TOTAL = LAYOUT["total"]
 
 
 def _is_valid(row):
+    # Shared validity + troll filter, plus the pick model's stricter need for a
+    # full 21-char valg (round-1 16 + round-2 4 + final).
+    if not is_valid_clean(row):
+        return False
     try:
-        if row[5] not in ("g", "j"):
-            return False
-        if row[8] == "no data" or len(row[8]) < 4:
-            return False
-        if len(row[8][0]) < 64 or len(row[8][1]) < 16 or len(row[8][2]) < 4:
-            return False
-        if len(row[7]) < 21 or len(row[6]) < 21:
-            return False
-        total = int(row[7][-1])
-        if total < DURATION_MIN_MS or total > DURATION_MAX_MS:
-            return False
-        return True
+        return len(row[6]) >= 21
     except Exception:
         return False
 

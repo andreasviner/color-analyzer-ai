@@ -60,6 +60,18 @@ os.makedirs(JS_OUT_DIR, exist_ok=True)
 sys.path.insert(0, CF_DIR)
 import features_long as fl  # noqa: E402
 
+# Shared validity + troll filter for the short sessions we synthesise from,
+# and for any real long sessions folded in.
+sys.path.insert(0, TRAINING_DIR)
+from data_cleaning import is_valid_clean, is_valid_long_clean  # noqa: E402
+
+# Real long sessions pulled from the live DB (written by the refresh
+# orchestrator). They are rare, so we still synthesise the bulk from short
+# quads, but real rows get a heavier sample weight so the models focus on
+# genuine long behaviour. Override the weight with CP_REAL_LONG_WEIGHT.
+REAL_LONG_SOURCE = os.path.join(TRAINING_DIR, "raw", "long_real.json")
+REAL_LONG_WEIGHT = float(os.environ.get("CP_REAL_LONG_WEIGHT", "3.0"))
+
 SEED = 42
 SHORT_N_R1 = 16   # short round-0 questions
 SHORT_N_R2 = 4    # short round-1 questions
@@ -87,26 +99,31 @@ CHAMPION_REG = dict(
 # ---------- load + validate short sessions ----------
 
 def _is_valid(row):
-    try:
-        if row[5] not in ("g", "j"):
-            return False
-        age = int(row[3])
-        if not (6 <= age <= 68):
-            return False
-        if row[8] == "no data" or len(row[8]) < 4:
-            return False
-        if len(row[8][0]) < 64 or len(row[8][1]) < 16 or len(row[8][2]) < 4:
-            return False
-        if len(row[7]) < 21:
-            return False
-        total = int(row[7][-1])
-        if total < DURATION_MIN_MS or total > DURATION_MAX_MS:
-            return False
-        if not str(row[4]).lstrip("-").isdigit():
-            return False
-        return True
-    except Exception:
-        return False
+    # Shared filter for the short sessions the synthetic long rows are built from.
+    return is_valid_clean(row)
+
+
+def _load_real_long():
+    """Load real long sessions pulled from the live DB, if any.
+
+    Returns (payloads, labels) for rows that pass the long troll filter. The
+    file is a JSON list of {"payload": {...}, "label": {...}} written by the
+    refresh orchestrator; absent (e.g. before the first live pull) -> empty.
+    """
+    if not os.path.exists(REAL_LONG_SOURCE):
+        return [], []
+    with open(REAL_LONG_SOURCE, encoding="utf-8") as fh:
+        items = json.load(fh)
+    payloads, labels = [], []
+    for it in items:
+        payload, label = it.get("payload"), it.get("label")
+        if payload is None or label is None:
+            continue
+        if not is_valid_long_clean(payload, label):
+            continue
+        payloads.append(payload)
+        labels.append(label)
+    return payloads, labels
 
 
 def _parse_short(row):
@@ -295,11 +312,24 @@ def main():
 
     print("Synthesising long sessions (quads of same gender/age, mood-sorted)...")
     payloads, labels, n_padded = _build_long_sessions(shorts, rng)
+    n_synth = len(payloads)
+
+    # Fold in real long sessions from the live DB (heavier sample weight).
+    real_payloads, real_labels = _load_real_long()
+    n_real = len(real_payloads)
+    payloads = payloads + real_payloads
+    labels = labels + real_labels
+
     N = len(payloads)
     g = np.array([l["gender"] for l in labels], dtype=np.int8)
     a = np.array([l["age"] for l in labels], dtype=np.float32)
     m = np.array([l["mood"] for l in labels], dtype=np.float32)
-    print(f"  {N} long rows  ({n_padded} padded shorts)  "
+    # Synthetic rows weigh 1.0; real long rows weigh REAL_LONG_WEIGHT so the
+    # models lean on genuine long behaviour despite being outnumbered.
+    weight = np.ones(N, dtype=np.float32)
+    weight[n_synth:] = REAL_LONG_WEIGHT
+    print(f"  {N} long rows = {n_synth} synthetic ({n_padded} padded) + "
+          f"{n_real} real (weight {REAL_LONG_WEIGHT:g})  "
           f"girls={int((g == 1).sum())} boys={int((g == 0).sum())}  "
           f"age {a.mean():.1f}  mood {m.mean():.1f}")
 
@@ -348,19 +378,19 @@ def main():
     Xg_tr, Xa_tr, Xm_tr = stack(tr, grids_eval)
     Xg_va, Xa_va, Xm_va = stack(va, grids_eval)
 
-    clf = lgb.LGBMClassifier(**CHAMPION_CLF).fit(Xg_tr, g[tr])
+    clf = lgb.LGBMClassifier(**CHAMPION_CLF).fit(Xg_tr, g[tr], sample_weight=weight[tr])
     p_g = clf.predict_proba(Xg_va)[:, 1]
     auc_g = roc_auc_score(g[va], p_g)
     pred = (p_g >= 0.5).astype(int)
     acc_g, f1_g = accuracy_score(g[va], pred), f1_score(g[va], pred)
     print(f"  GENDER  AUC={auc_g:.4f}  acc={acc_g:.4f}  F1={f1_g:.4f}")
 
-    reg_a = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xa_tr, a[tr])
+    reg_a = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xa_tr, a[tr], sample_weight=weight[tr])
     p_a = reg_a.predict(Xa_va)
     mae_a, r2_a = mean_absolute_error(a[va], p_a), r2_score(a[va], p_a)
     print(f"  AGE     MAE={mae_a:.3f}  R2={r2_a:+.3f}")
 
-    reg_m = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xm_tr, m[tr])
+    reg_m = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xm_tr, m[tr], sample_weight=weight[tr])
     p_m = reg_m.predict(Xm_va)
     mae_m, r2_m = mean_absolute_error(m[va], p_m), r2_score(m[va], p_m)
     print(f"  MOOD    MAE={mae_m:.3f}  R2={r2_m:+.3f}")
@@ -369,9 +399,9 @@ def main():
     print("\nPass 2 - refit on all rows + emit ...")
     grids_full = build_grids(all_idx)
     Xg, Xa, Xm = stack(all_idx, grids_full)
-    prod_clf = lgb.LGBMClassifier(**CHAMPION_CLF).fit(Xg, g)
-    prod_reg_a = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xa, a)
-    prod_reg_m = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xm, m)
+    prod_clf = lgb.LGBMClassifier(**CHAMPION_CLF).fit(Xg, g, sample_weight=weight)
+    prod_reg_a = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xa, a, sample_weight=weight)
+    prod_reg_m = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xm, m, sample_weight=weight)
 
     sample_idx = rng.choice(N, min(16, N), replace=False)
     cfg = [
@@ -400,9 +430,12 @@ def main():
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "kind": "long survey (256 colors) models",
         "data": {
-            "source": "synthetic long rows = quads of short sessions (same gender+age, mood-sorted)",
+            "source": "synthetic long rows (quads of short sessions) + real long DB rows (heavier weight)",
             "n_short_sessions": len(shorts),
             "n_long_rows": int(N),
+            "n_synthetic": int(n_synth),
+            "n_real": int(n_real),
+            "real_long_weight": REAL_LONG_WEIGHT,
             "n_padded_shorts": int(n_padded),
             "quad_size": QUAD,
             "label_mood": "mean of the 4 short moods",

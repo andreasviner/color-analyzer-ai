@@ -1,10 +1,10 @@
 {
-  "trained_at": "2026-06-12T23:24:55.222620+00:00",
+  "trained_at": "2026-06-18T18:41:00.272054+00:00",
   "kind": "LONG-survey colour-pick model (synthetic long rows from short quads)",
   "smoke": false,
-  "n_long_rows": 1724,
+  "n_long_rows": 1719,
   "probes_per_session": 16,
-  "n_rows": 110336,
+  "n_rows": 110016,
   "layout": {
     "person": 239,
     "candidate": 33,
@@ -29,12 +29,12 @@
     "val_frac": 0.1,
     "seed": 42,
     "chance": 0.25,
-    "auc": 0.7412966764397964,
-    "pick_accuracy": 0.49783236994219654,
-    "leak_gate": 0.24710982658959538
+    "auc": 0.7399552879794258,
+    "pick_accuracy": 0.5069040697674418,
+    "leak_gate": 0.25617732558139533
   },
   "emit": {
-    "json_kb": 5305.41,
+    "json_kb": 5304.59,
     "n_trees": 1500,
     "n_nodes": 187500,
     "max_emit_delta": 0.0

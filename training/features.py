@@ -44,9 +44,15 @@ try:
 except ImportError:
     OSLO = None
 
+import sys
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SOURCE = os.path.join(HERE, "raw", "save.ligma")
 OUT_DIR = HERE
+
+# Shared validity + troll filter (single source of truth across all trainers).
+sys.path.insert(0, HERE)
+from data_cleaning import is_valid_clean  # noqa: E402
 
 DURATION_MIN_MS = 15_000
 DURATION_MAX_MS = 600_000
@@ -87,28 +93,9 @@ def reference_distances(rgb):
 
 
 def is_valid(row):
-    try:
-        if row[5] not in ("g", "j"):
-            return False
-        age = int(row[3])
-        if not (6 <= age <= 68):
-            return False
-        if row[8] == "no data":
-            return False
-        if len(row[8]) < 4:
-            return False
-        if len(row[8][0]) < 64 or len(row[8][1]) < 16 or len(row[8][2]) < 4:
-            return False
-        if len(row[7]) < N_QUESTIONS:
-            return False
-        total = int(row[7][-1])
-        if total < DURATION_MIN_MS or total > DURATION_MAX_MS:
-            return False
-        if not str(row[4]).lstrip("-").isdigit():
-            return False
-        return True
-    except Exception:
-        return False
+    # Delegates to the shared validity + troll filter so every trainer selects
+    # the exact same row set (and order) as features.npy.
+    return is_valid_clean(row)
 
 
 def rgb_to_hsl(rgb):

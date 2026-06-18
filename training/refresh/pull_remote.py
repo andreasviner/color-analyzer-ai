@@ -39,6 +39,27 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(HERE, "remote_dump.json")
 
+# color-polygraph root (the folder with cloudflare/) holds the .env.
+_CP_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+
+
+def _load_dotenv(path):
+    """Minimal KEY=VALUE loader. Does not override variables already set in the
+    real environment, so an explicit `export` still wins over the file."""
+    if not os.path.exists(path):
+        return
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key, val = key.strip(), val.strip().strip('"').strip("'")
+            os.environ.setdefault(key, val)
+
+
+_load_dotenv(os.path.join(_CP_ROOT, ".env"))
+
 DEFAULT_BASE = os.environ.get("CP_API_BASE", "https://api.andreaslindeman.com")
 PAGE_LIMIT = 1000          # matches the worker default; capped at 5000 there
 REQUEST_TIMEOUT = 60       # seconds per page request
