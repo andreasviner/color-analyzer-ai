@@ -19,6 +19,12 @@ ALLOWED_ORIGINS = "https://andreaslindeman.com,https://andreaslindeman.no,https:
 
 # IP_HASH_SALT must be set as a secret, not in vars:
 #   wrangler secret put IP_HASH_SALT
+#
+# EXPORT_TOKEN gates the authenticated GET /color-polygraph/export endpoint
+# the retraining pipeline (training/refresh/pull_remote.py) uses to pull the
+# live database down. Set it as a secret (NOT in [vars]); if it is unset the
+# export endpoint fails closed with 503.
+#   wrangler secret put EXPORT_TOKEN
 
 # Route a custom domain to the worker (after you add the zone to your CF
 # account). Until that's done, the worker is reachable at

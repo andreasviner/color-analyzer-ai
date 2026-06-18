@@ -27,6 +27,14 @@ the survey.html `API_BASE` points at):
         Body: {pred_value, confirmed_value}
         Final step. Marks the row as completed.
 
+    GET /color-polygraph/export?limit=&offset=&completed_only=
+        Authenticated bulk export of stored survey rows, used by the
+        retraining pipeline (training/refresh/pull_remote.py) to pull the
+        live database down for cleaning + retraining. Requires the header
+        `x-export-token` to match the EXPORT_TOKEN secret. Returns the raw
+        JSON columns (offered/r1/r2/r3/final/valg/tider + confirmed targets)
+        in stable id order, paged so a large table can be walked in chunks.
+
     OPTIONS *
         CORS preflight. Allows requests from the static-site origin.
 
@@ -449,6 +457,123 @@ async def _handle_get_survey(request, env, survey_id):
     return _json_response(resp, request, env)
 
 
+# ---------- /color-polygraph/export ----------
+
+# Columns the retraining pipeline needs. The raw JSON blobs reconstruct the
+# survey payload; the confirmed_* columns are the training targets. Metadata
+# columns (ip_hash, user_agent, geo) are deliberately NOT exported.
+_EXPORT_COLUMNS = (
+    "id, server_received_at, client_started_at, client_submitted_at, "
+    "client_local_time, offered_json, r1_json, r2_json, r3_json, "
+    "final_color_json, valg, tider_json, long_survey, "
+    "confirmed_gender, confirmed_age, confirmed_mood, "
+    "pred_gender_prob, pred_age, pred_mood"
+)
+
+_EXPORT_DEFAULT_LIMIT = 1000
+_EXPORT_MAX_LIMIT = 5000
+
+
+def _query_param(url, key, default=None):
+    """Pull a single query-string value out of the request URL."""
+    try:
+        from urllib.parse import urlparse, parse_qs
+        qs = parse_qs(urlparse(url).query)
+        vals = qs.get(key)
+        return vals[0] if vals else default
+    except Exception:
+        return default
+
+
+async def _handle_export(request, env):
+    """Authenticated bulk export for the retraining pipeline.
+
+    Auth: the request must send `x-export-token` matching the EXPORT_TOKEN
+    secret. If the secret is unset we refuse outright (fail closed) so a
+    half-configured deploy never leaks the table.
+    """
+    expected = getattr(env, "EXPORT_TOKEN", None)
+    if not expected:
+        return _error("export disabled: EXPORT_TOKEN not configured", request, env, status=503)
+    supplied = request.headers.get("x-export-token", "") or ""
+    # Constant-time compare to avoid leaking the token length/prefix via timing.
+    if not hmac.compare_digest(str(supplied), str(expected)):
+        return _error("unauthorized", request, env, status=401)
+
+    url = request.url
+    try:
+        limit = int(_query_param(url, "limit", _EXPORT_DEFAULT_LIMIT))
+    except (TypeError, ValueError):
+        limit = _EXPORT_DEFAULT_LIMIT
+    try:
+        offset = int(_query_param(url, "offset", 0))
+    except (TypeError, ValueError):
+        offset = 0
+    limit = max(1, min(limit, _EXPORT_MAX_LIMIT))
+    offset = max(0, offset)
+
+    # completed_only defaults to true: training needs all three confirmations.
+    completed_only = str(_query_param(url, "completed_only", "1")).lower() not in ("0", "false", "no")
+    where = (
+        "WHERE confirmed_gender IS NOT NULL AND confirmed_age IS NOT NULL "
+        "AND confirmed_mood IS NOT NULL"
+        if completed_only else ""
+    )
+
+    try:
+        total_row = await env.DB.prepare(
+            f"SELECT COUNT(*) AS n FROM surveys {where}"
+        ).first()
+        try:
+            total_row = total_row.to_py()
+        except AttributeError:
+            pass
+        total = int(total_row["n"] if isinstance(total_row, dict) else getattr(total_row, "n", 0))
+
+        # Stable ordering by insertion time then id so paging is deterministic.
+        result = await env.DB.prepare(
+            f"SELECT {_EXPORT_COLUMNS} FROM surveys {where} "
+            "ORDER BY server_received_at ASC, id ASC LIMIT ? OFFSET ?"
+        ).bind(limit, offset).all()
+    except Exception as exc:
+        return _error(f"db error: {exc}", request, env, status=500)
+
+    raw_rows = getattr(result, "results", None)
+    if raw_rows is None:
+        raw_rows = result
+    try:
+        raw_rows = raw_rows.to_py()
+    except AttributeError:
+        pass
+
+    rows = []
+    for r in (raw_rows or []):
+        try:
+            r = r.to_py()
+        except AttributeError:
+            pass
+        if isinstance(r, dict):
+            rows.append(dict(r))
+        else:
+            rows.append({k: getattr(r, k, None) for k in (
+                "id", "server_received_at", "client_started_at",
+                "client_submitted_at", "client_local_time", "offered_json",
+                "r1_json", "r2_json", "r3_json", "final_color_json", "valg",
+                "tider_json", "long_survey", "confirmed_gender",
+                "confirmed_age", "confirmed_mood", "pred_gender_prob",
+                "pred_age", "pred_mood")})
+
+    return _json_response({
+        "rows": rows,
+        "count": len(rows),
+        "limit": limit,
+        "offset": offset,
+        "total": total,
+        "completed_only": completed_only,
+        "has_more": offset + len(rows) < total,
+    }, request, env)
+
+
 def _row_was_updated(result) -> bool:
     """D1 returns a meta object with `changes` in JS. Pyodide returns a JsProxy."""
     try:
@@ -483,6 +608,9 @@ async def on_fetch(request, env, ctx=None):
 
     if path == "/color-polygraph/survey" and method == "POST":
         return await _handle_submit(request, env)
+
+    if path == "/color-polygraph/export" and method == "GET":
+        return await _handle_export(request, env)
 
     # /color-polygraph/survey/{id}  — GET returns stored result for share link
     if path.startswith("/color-polygraph/survey/") and method == "GET":
