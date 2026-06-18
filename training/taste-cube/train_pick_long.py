@@ -87,22 +87,20 @@ def main():
     t0 = time.time()
     rng = np.random.RandomState(SEED)
 
-    print("Loading short sessions + assembling synthetic long rows...")
+    print("Loading short sessions (served as duplicate-short longs)...")
     with open(RAW_SOURCE, encoding="utf-8") as fh:
         raw = json.load(fh)
     shorts = [tl._parse_short(r) for r in raw if tl._is_valid(r)]
-    payloads, labels, n_padded = tl._build_long_sessions(shorts, rng)
     if smoke:
-        payloads, labels = payloads[:120], labels[:120]
-    print(f"  {len(shorts)} shorts -> {len(payloads)} long rows ({n_padded} padded)")
-
-    # Sessions for probe building: payload + an id + the submit time.
-    sessions = []
-    for i, p in enumerate(payloads):
-        s = dict(p)
+        shorts = shorts[:120]
+    # Duplicate-short: each short is served as one coherent person's long (the
+    # short replicated 4x), same as the long gender/age/mood model. The probe
+    # builder removes the probed question from the short BEFORE duplicating, so
+    # the answer cannot leak through the duplicate blocks.
+    for i, s in enumerate(shorts):
         s["id"] = i
-        s["time"] = labels[i]["time"]
-        sessions.append(s)
+    sessions = shorts
+    print(f"  {len(shorts)} short sessions -> duplicate-short longs (built per probe)")
 
     print(f"Building probe rows ({pfl.PROBES_PER_SESSION_LONG} probes/row, "
           f"long prod features per probe)...   layout {LAYOUT}")
@@ -164,9 +162,10 @@ def main():
                        [30, 170, 80], [200, 120, 200], [25, 25, 25]]
         parity = []
         for s in sessions[:4]:
-            ctx = tfeat.session_context(s["r1"], s["r2"], s["final"])
+            long_pay, _ = tl._dup_short_to_long(s)   # the served long shape
+            ctx = tfeat.session_context(long_pay["r1"], long_pay["r2"], long_pay["final"])
             parity.append({
-                "r1": s["r1"], "r2": s["r2"], "final": s["final"],
+                "r1": long_pay["r1"], "r2": long_pay["r2"], "final": long_pay["final"],
                 "candidates": [{
                     "rgb": c,
                     "cand": pf.candidate_vector(c),

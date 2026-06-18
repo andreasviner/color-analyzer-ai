@@ -32,6 +32,9 @@ import features_long as fl  # noqa: E402  (the real prod long extractor)
 import pick_features as pf  # noqa: E402  (shared candidate descriptors)
 import taste_features as tfeat  # noqa: E402  (shared interactions + colour math)
 
+sys.path.insert(0, os.path.normpath(os.path.join(HERE, "..", "long-models")))
+import train_long as tl  # noqa: E402  (duplicate-short long assembly)
+
 N_R0_LONG = 64
 
 # Probe questions per (synthetic) long survey. There are only ~1.7k long rows
@@ -42,74 +45,65 @@ PROBES_PER_SESSION_LONG = 16
 PERSON_LEN_LONG = 239  # 234 static + girly/masc/signed + age_total + mood_total
 
 
-def eligible_probes(session: Dict) -> List[int]:
-    """Round-0 questions whose winner did not advance (absent from r2)."""
-    r1 = session["r1"]
-    r2 = [list(c) for c in session["r2"]]
-    out = []
-    for q in range(N_R0_LONG):
-        if tfeat._color_in(r1[q], r2):
-            continue
-        try:
-            pick = int(session["valg"][q])
-        except (ValueError, IndexError):
-            continue
-        if 0 <= pick <= 3:
-            out.append(q)
-    return out
-
-
-def modified_payload(session: Dict, probe_q: int, donor_q: int) -> Dict:
-    """The long session as if the probe question never happened."""
-    offered = [list(c) for c in session["offered"]]
-    r1 = [list(c) for c in session["r1"]]
-    valg = list(session["valg"])
-
-    offered[probe_q * 4:(probe_q + 1) * 4] = [list(c) for c in
-                                              session["offered"][donor_q * 4:(donor_q + 1) * 4]]
-    r1[probe_q] = list(session["r1"][donor_q])
-    valg[probe_q] = session["valg"][donor_q]
-
-    return {
-        "offered": offered,
-        "r1": r1,
-        "r2": [list(c) for c in session["r2"]],
-        "r3": [list(c) for c in session["r3"]],
-        "final": list(session["final"]),
-        "valg": "".join(valg),
-        "tider": list(session["tider"]),
-    }
-
-
 def person_vector(payload: Dict, submit_unix: int) -> List[float]:
     """The exact long prod vector the result page gets from the worker."""
     f = fl.compute_features_long(payload, submit_unix)
     return f["gender"] + [f["age"][-1], f["mood"][-1]]
 
 
-def build_probe_rows(session: Dict, n_probes: int = PROBES_PER_SESSION_LONG,
+def _modified_short(short: Dict, probe_q: int, donor_q: int) -> Dict:
+    """The SHORT as if the probe question never happened (its offered quad, r1
+    winner and valg digit overwritten by a donor loser). Returned in the shape
+    tl._dup_short_to_long expects."""
+    offered = [list(c) for c in short["offered"]]
+    r1 = [list(c) for c in short["r1"]]
+    valg = list(short["valg"])
+    offered[probe_q * 4:(probe_q + 1) * 4] = [list(c) for c in
+                                              short["offered"][donor_q * 4:(donor_q + 1) * 4]]
+    r1[probe_q] = list(short["r1"][donor_q])
+    valg[probe_q] = short["valg"][donor_q]
+    return {
+        "offered": offered, "r1": r1,
+        "r2": [list(c) for c in short["r2"]],
+        "final": list(short["final"]),
+        "valg": "".join(valg), "deltas": short["deltas"],
+        "gender": short["gender"], "age": short["age"],
+        "mood": short["mood"], "time": short.get("time", 0),
+    }
+
+
+def build_probe_rows(short: Dict, n_probes: int = PROBES_PER_SESSION_LONG,
                      with_interactions: bool = True):
-    """Yield (row, label, group_id) for one long session. Same construction as
-    the short model's pick_features.build_probe_rows."""
-    probes = pf.spread_subset(eligible_probes(session), n_probes)
+    """Yield (row, label, group_id) for one short session, served as a
+    duplicate-short long. CRITICAL: the probe question is removed from the SHORT
+    *before* it is duplicated 4x into the long, so the probed colour is absent
+    from all four blocks. Removing it only once (after duplication) would leave
+    three copies in the person features and leak the answer.
+
+    `short` = tl._parse_short output (+ "id"): offered 64, r1 16, r2 4, final,
+    valg 21, deltas 21, gender/age/mood/time.
+    """
+    probes = pf.spread_subset(pf.eligible_probes(short), n_probes)
     if not probes:
         return []
 
     rows = []
-    sid = session.get("id", id(session))
+    sid = short.get("id", id(short))
     for i, q in enumerate(probes):
         donor = probes[(i + 1) % len(probes)]
         if donor == q:
             continue
-        pay = modified_payload(session, q, donor)
-        person = person_vector(pay, session.get("time", 0))
+        # remove-then-duplicate: erase q in the short, THEN make the long.
+        mod_short = _modified_short(short, q, donor)
+        long_pay, _ = tl._dup_short_to_long(mod_short)
+        person = person_vector(long_pay, short.get("time", 0))
 
         ctx = None
         if with_interactions:
-            ctx = tfeat.session_context(pay["r1"], pay["r2"], pay["final"])
+            ctx = tfeat.session_context(long_pay["r1"], long_pay["r2"], long_pay["final"])
 
-        pick = int(session["valg"][q])
-        quad = session["offered"][q * 4:(q + 1) * 4]
+        pick = int(short["valg"][q])
+        quad = short["offered"][q * 4:(q + 1) * 4]   # the ORIGINAL (unremoved) quad
         for idx in range(4):
             row = list(person) + pf.candidate_vector(quad[idx])
             if with_interactions:
