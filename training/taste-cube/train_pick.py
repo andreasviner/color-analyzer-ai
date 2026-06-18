@@ -39,7 +39,7 @@ PROJECT_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 RAW_SOURCE = os.path.join(TRAINING_DIR, "raw", "save.ligma")
 
 sys.path.insert(0, TRAINING_DIR)
-from data_cleaning import is_valid_clean  # noqa: E402
+from data_cleaning import is_valid_clean, load_short_rows  # noqa: E402
 JS_OUT_DIR = os.path.normpath(
     os.path.join(PROJECT_ROOT, "..", "english_html", "color-polygraph", "models-js"))
 os.makedirs(JS_OUT_DIR, exist_ok=True)
@@ -115,8 +115,7 @@ def main():
     t0 = time.time()
 
     print("Loading sessions...")
-    with open(RAW_SOURCE, encoding="utf-8") as fh:
-        raw = json.load(fh)
+    raw = load_short_rows()
     sessions = [_parse(r) for r in raw if _is_valid(r)]
     if smoke:
         sessions = sessions[:300]

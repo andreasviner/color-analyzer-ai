@@ -1,23 +1,30 @@
 {
-  "trained_at": "2026-06-18T18:51:25.618914+00:00",
+  "trained_at": "2026-06-18T20:24:41.369169+00:00",
   "kind": "long survey (256 colors) models",
   "data": {
-    "source": "synthetic long rows (quads of short sessions) + real long DB rows (heavier weight)",
+    "source": "duplicate-short synthetic longs (one short replicated 4x) + real long DB rows (heavier weight)",
     "n_short_sessions": 7043,
-    "n_long_rows": 2894,
-    "n_synthetic": 1808,
+    "n_long_rows": 8129,
+    "n_synthetic": 7043,
     "n_real": 1086,
     "real_long_weight": 3.0,
-    "n_padded_shorts": 189,
+    "n_padded_shorts": 0,
     "quad_size": 4,
     "label_mood": "mean of the 4 short moods"
   },
   "validation": {
-    "kind": "stratified random split",
-    "val_frac": 0.1,
-    "n_train": 2604,
-    "n_val": 290,
-    "seed": 42
+    "kind": "real-long holdout: 30% of 1086 real longs as test, train = all synthetic + remaining real",
+    "test_real_frac": 0.3,
+    "n_train": 7803,
+    "n_val": 326,
+    "n_real_total": 1086,
+    "seed": 42,
+    "short_reference": {
+      "kind": "short model, mean of the 4 sub-surveys, on the same held-out real longs",
+      "gender_auc": 0.7327861952861954,
+      "age_mae": 7.285258769989014,
+      "mood_mae": 14.173187255859375
+    }
   },
   "n_features": {
     "gender": 237,
@@ -25,13 +32,13 @@
     "mood": 235
   },
   "validation_scores": {
-    "gender_auc": 0.8831904761904761,
-    "gender_accuracy": 0.8103448275862069,
-    "gender_f1": 0.7876447876447876,
-    "age_mae": 7.126516791747729,
-    "age_r2": 0.3086057127098524,
-    "mood_mae": 10.757087921234369,
-    "mood_r2": 0.3216916481290415
+    "gender_auc": 0.7641835016835017,
+    "gender_accuracy": 0.7361963190184049,
+    "gender_f1": 0.5376344086021505,
+    "age_mae": 6.9803338237348935,
+    "age_r2": -0.03809339797455191,
+    "mood_mae": 10.591224633938555,
+    "mood_r2": -0.08078287555367791
   },
   "champion_clf_params": {
     "n_estimators": 800,
@@ -61,19 +68,19 @@
   },
   "emit_stats": {
     "gender_long": {
-      "json_kb": 2752.15,
+      "json_kb": 2809.66,
       "n_trees": 800,
-      "n_nodes": 97264,
+      "n_nodes": 100000,
       "max_emit_delta": 0.0
     },
     "age_long": {
-      "json_kb": 3520.69,
+      "json_kb": 3481.45,
       "n_trees": 1000,
       "n_nodes": 125000,
       "max_emit_delta": 0.0
     },
     "mood_long": {
-      "json_kb": 3516.7,
+      "json_kb": 3473.77,
       "n_trees": 1000,
       "n_nodes": 125000,
       "max_emit_delta": 0.0

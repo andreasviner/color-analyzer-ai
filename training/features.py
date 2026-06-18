@@ -52,7 +52,7 @@ OUT_DIR = HERE
 
 # Shared validity + troll filter (single source of truth across all trainers).
 sys.path.insert(0, HERE)
-from data_cleaning import is_valid_clean  # noqa: E402
+from data_cleaning import is_valid_clean, load_short_rows  # noqa: E402
 
 DURATION_MIN_MS = 15_000
 DURATION_MAX_MS = 600_000
@@ -408,8 +408,7 @@ def extract_features(row):
 
 
 def main():
-    with open(SOURCE, "r", encoding="utf-8") as fh:
-        rows = json.load(fh)
+    rows = load_short_rows()
 
     print(f"loaded {len(rows)} raw rows")
 

@@ -32,7 +32,12 @@ those questions is under SPAM_FAST_MEAN_MS. Tune SPAM_FAST_MEAN_MS up toward
 infinity for a pure position-only rule, or down to 0 to disable the spam gate.
 """
 
+import os
 from collections import Counter
+
+_RAW_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "raw")
+_SAVE_LIGMA = os.path.join(_RAW_DIR, "save.ligma")
+_SHORT_FROM_LONG = os.path.join(_RAW_DIR, "short_from_long.json")
 
 # ---------- structural constants (shared with the trainers) ----------
 
@@ -241,3 +246,75 @@ def db_row_to_long(db):
         "time": time_sec,
     }
     return payload, label
+
+
+# ---------- long -> 4 short surveys (mirror of the short -> long synthesis) ----------
+
+def long_payload_to_shorts(payload, label, long_id):
+    """Split one REAL long session into its 4 constituent short surveys.
+
+    A long survey is structurally four short surveys stacked plus one extra
+    final question (long = 4 x short + 1), assembled round-major. This reverses
+    that: sub-short k takes the k-th block of every round, and the synthetic
+    85th pick (the among-the-4-finalists question) is dropped.
+
+    Unlike the short->long synthesis (which glues 4 *different* people together),
+    every sub-short here is the SAME real person, so all four carry that
+    person's gender / age / mood. Returns up to 4 raw rows (save.ligma layout);
+    the caller still runs each through is_valid_clean.
+    """
+    offered = payload["offered"]
+    r1 = payload["r1"]
+    r2 = payload["r2"]
+    r3 = payload["r3"]
+    valg = str(payload["valg"])
+    tider = [int(x) for x in payload["tider"]]
+    if (len(offered) < 256 or len(r1) < 64 or len(r2) < 16 or len(r3) < 4
+            or len(valg) < 85 or len(tider) < 85):
+        return []
+    deltas = [max(0, tider[0])] + [max(0, tider[i] - tider[i - 1]) for i in range(1, len(tider))]
+    gender = "j" if int(label["gender"]) == 1 else "g"
+    age = int(label["age"])
+    mood = int(label["mood"])
+    time_sec = int(label.get("time", 0) or 0)
+
+    rows = []
+    for k in range(4):
+        off_k = offered[k * 64:(k + 1) * 64]                 # 64 offered
+        r1_k = r1[k * 16:(k + 1) * 16]                        # 16 round-0 winners
+        r2_k = r2[k * 4:(k + 1) * 4]                          # 4 round-1 winners
+        final_k = r3[k]                                       # this sub-short's winner
+        # picks: 16 round-0 + 4 round-1 + 1 final (the among-this-block question)
+        valg_k = valg[k * 16:(k + 1) * 16] + valg[64 + k * 4:64 + (k + 1) * 4] + valg[80 + k:81 + k]
+        d_k = deltas[k * 16:(k + 1) * 16] + deltas[64 + k * 4:64 + (k + 1) * 4] + [deltas[80 + k]]
+        if (len(off_k) < 64 or len(r1_k) < 16 or len(r2_k) < 4
+                or len(final_k) < 3 or len(valg_k) < 21 or len(d_k) < 21):
+            continue
+        tider_k, run = [], 0
+        for d in d_k:
+            run += d
+            tider_k.append(int(run))
+        rows.append([
+            f"{long_id}#{k}", str(time_sec), "x", str(age), str(mood),
+            gender, valg_k, tider_k, [off_k, r1_k, r2_k, list(final_k)],
+        ])
+    return rows
+
+
+# ---------- short training-row loader (used by all short-model trainers) ----------
+
+def load_short_rows(save_path=None):
+    """Load the short training rows: save.ligma plus, unless
+    CP_INCLUDE_DECOMPOSED=0, the shorts decomposed from real long surveys
+    (raw/short_from_long.json). All short-model trainers (features.py,
+    lgb-production, taste-cube/train_pick) load through here so they select the
+    identical row set in the identical order. The long synthesis (train_long,
+    train_pick_long) deliberately does NOT use this - it reads save.ligma only,
+    so decomposed shorts are never re-synthesised back into longs."""
+    import json
+    with open(save_path or _SAVE_LIGMA, encoding="utf-8") as fh:
+        rows = json.load(fh)
+    if os.environ.get("CP_INCLUDE_DECOMPOSED", "1") != "0" and os.path.exists(_SHORT_FROM_LONG):
+        with open(_SHORT_FROM_LONG, encoding="utf-8") as fh:
+            rows = rows + json.load(fh)
+    return rows

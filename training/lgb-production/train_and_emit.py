@@ -67,7 +67,7 @@ os.makedirs(JS_OUT_DIR, exist_ok=True)
 # Shared validity + troll filter (must match features.py so the re-parsed
 # bucket vectors line up row-for-row with features.npy).
 sys.path.insert(0, TRAINING_DIR)
-from data_cleaning import is_valid_clean  # noqa: E402
+from data_cleaning import is_valid_clean, load_short_rows  # noqa: E402
 
 SEED = 42
 N_R1 = 16
@@ -286,8 +286,7 @@ def main():
 
     print("Computing per-session bucket vectors (8x8x8 RGB)...")
     t0 = time.time()
-    with open(RAW_SOURCE, encoding="utf-8") as fh:
-        rows = json.load(fh)
+    rows = load_short_rows()
     discrete_list, smooth_list = [], []
     for row in rows:
         if not _is_valid(row):

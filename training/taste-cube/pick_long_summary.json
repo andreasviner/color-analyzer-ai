@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-06-18T19:02:07.545739+00:00",
+  "trained_at": "2026-06-18T20:34:48.027383+00:00",
   "kind": "LONG-survey colour-pick model (synthetic long rows from short quads)",
   "smoke": false,
   "n_long_rows": 1808,
@@ -29,12 +29,12 @@
     "val_frac": 0.1,
     "seed": 42,
     "chance": 0.25,
-    "auc": 0.7201936944842954,
-    "pick_accuracy": 0.48411602209944754,
+    "auc": 0.7217590879144918,
+    "pick_accuracy": 0.48998618784530384,
     "leak_gate": 0.25172651933701656
   },
   "emit": {
-    "json_kb": 5305.35,
+    "json_kb": 5304.89,
     "n_trees": 1500,
     "n_nodes": 187500,
     "max_emit_delta": 0.0

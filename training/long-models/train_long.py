@@ -59,11 +59,67 @@ os.makedirs(JS_OUT_DIR, exist_ok=True)
 # Use the SAME extractor the worker serves with (single source of truth).
 sys.path.insert(0, CF_DIR)
 import features_long as fl  # noqa: E402
+import features as sf       # noqa: E402  short extractor (for the short reference)
+import math                 # noqa: E402
 
 # Shared validity + troll filter for the short sessions we synthesise from,
 # and for any real long sessions folded in.
 sys.path.insert(0, TRAINING_DIR)
-from data_cleaning import is_valid_clean, is_valid_long_clean  # noqa: E402
+from data_cleaning import (  # noqa: E402
+    is_valid_clean, is_valid_long_clean, long_payload_to_shorts)
+
+
+def _load_short_trees():
+    """Load the deployed short gender/age/mood trees (None if not yet built)."""
+    out = {}
+    for name in ("gender", "age", "mood"):
+        path = os.path.join(JS_OUT_DIR, f"{name}_trees.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as fh:
+            out[name] = json.load(fh)["trees"]
+    return out
+
+
+def _walk(trees, f):
+    total = 0.0
+    for tr in trees:
+        i = 0
+        while tr[i * 4] != -1:
+            i = tr[i * 4 + 2] if f[tr[i * 4]] <= tr[i * 4 + 1] else tr[i * 4 + 3]
+        total += tr[i * 4 + 1]
+    return total
+
+
+def _short_reference(test_payloads, test_labels, age_true, mood_true):
+    """How well the SHORT model does on the same held-out real longs, run on
+    each long's 4 sub-surveys and averaged. This is the honest same-population
+    comparison the leaderboard shows next to the long model. The short trees are
+    trained on genuine shorts only (decomposition off), so they never saw these
+    longs -> leakage-free. Returns None if the short trees aren't built yet."""
+    trees = _load_short_trees()
+    if trees is None:
+        return None
+    probs, ages, moods = [], [], []
+    for p, lab in zip(test_payloads, test_labels):
+        gp, ap, mp = [], [], []
+        for row in long_payload_to_shorts(p, lab, "r"):
+            pay = {"offered": row[8][0], "r1": row[8][1], "r2": row[8][2],
+                   "final": row[8][3], "valg": row[6], "tider": row[7]}
+            fv = sf.compute_features(pay, lab["time"])
+            gp.append(1.0 / (1.0 + math.exp(-_walk(trees["gender"], fv["gender"]))))
+            ap.append(_walk(trees["age"], fv["age"]))
+            mp.append(_walk(trees["mood"], fv["mood"]))
+        probs.append(float(np.mean(gp)))
+        ages.append(float(np.mean(ap)))
+        moods.append(float(np.mean(mp)))
+    yv = np.array([int(l["gender"]) for l in test_labels])
+    return {
+        "kind": "short model, mean of the 4 sub-surveys, on the same held-out real longs",
+        "gender_auc": float(roc_auc_score(yv, probs)),
+        "age_mae": float(mean_absolute_error(age_true, ages)),
+        "mood_mae": float(mean_absolute_error(mood_true, moods)),
+    }
 
 # Real long sessions pulled from the live DB (written by the refresh
 # orchestrator). They are rare, so we still synthesise the bulk from short
@@ -71,6 +127,15 @@ from data_cleaning import is_valid_clean, is_valid_long_clean  # noqa: E402
 # genuine long behaviour. Override the weight with CP_REAL_LONG_WEIGHT.
 REAL_LONG_SOURCE = os.path.join(TRAINING_DIR, "raw", "long_real.json")
 REAL_LONG_WEIGHT = float(os.environ.get("CP_REAL_LONG_WEIGHT", "3.0"))
+
+# Honest long eval: hold out a fraction of the REAL long surveys as the test
+# set (so the reported metrics reflect genuine long performance, not the
+# synthetic short-quad rows whose duplicated padding would otherwise leak into
+# the test fold). We keep most real longs in training so they are not
+# "sacrificed" to the test set. Needs a minimum count to be meaningful;
+# below it we fall back to the old stratified-over-all split.
+LONG_TEST_REAL_FRAC = float(os.environ.get("CP_LONG_TEST_FRAC", "0.30"))
+MIN_REAL_FOR_HOLDOUT = 30
 
 SEED = 42
 SHORT_N_R1 = 16   # short round-0 questions
@@ -215,6 +280,45 @@ def _build_long_sessions(shorts, rng):
     return payloads, labels, n_padded
 
 
+# ---------- duplicate-short synthesis (chosen over blending) ----------
+# Blending four DIFFERENT people into one synthetic long makes an unrealistic
+# "four-person" long that classifies too easily and transfers poorly to real
+# (single-person) longs. Duplicating ONE short four times keeps the synthetic
+# long single-person, matching what a real long actually is. On a leakage-free
+# 30%-real-long holdout this beat blending on gender AUC (0.775 vs 0.766).
+
+def _dup_short_to_long(s):
+    """Replicate one short session 4x into a single-person long payload+label."""
+    v0, v1, vf = s["valg"][0:16], s["valg"][16:20], s["valg"][20]
+    d0, d1, df = s["deltas"][0:16], s["deltas"][16:20], s["deltas"][20]
+    payload = {
+        "offered": [list(c) for c in s["offered"]] * 4,   # 256
+        "r1": [list(c) for c in s["r1"]] * 4,               # 64
+        "r2": [list(c) for c in s["r2"]] * 4,               # 16
+        "r3": [list(s["final"]) for _ in range(4)],         # 4 finalists (all same)
+        "final": list(s["final"]),
+        "valg": v0 * 4 + v1 * 4 + vf * 4 + "0",             # 64 + 16 + 4 + 1
+    }
+    deltas = d0 * 4 + d1 * 4 + [df] * 4 + [float(df)]
+    tider, run = [], 0.0
+    for d in deltas:
+        run += d
+        tider.append(int(run))
+    payload["tider"] = tider
+    label = {"gender": s["gender"], "age": s["age"], "mood": s["mood"], "time": s["time"]}
+    return payload, label
+
+
+def _build_dup_long_sessions(shorts):
+    """One synthetic long per short (duplicate-short). No padding, no blending."""
+    payloads, labels = [], []
+    for s in shorts:
+        p, l = _dup_short_to_long(s)
+        payloads.append(p)
+        labels.append(l)
+    return payloads, labels, 0
+
+
 # ---------- LGB -> flat JSON tree emit (copied from lgb-production) ----------
 
 def _flatten_tree_quads(node):
@@ -310,8 +414,8 @@ def main():
     shorts = [_parse_short(r) for r in rows if _is_valid(r)]
     print(f"  {len(shorts)} valid short sessions")
 
-    print("Synthesising long sessions (quads of same gender/age, mood-sorted)...")
-    payloads, labels, n_padded = _build_long_sessions(shorts, rng)
+    print("Synthesising long sessions (duplicate-short: one short replicated 4x)...")
+    payloads, labels, n_padded = _build_dup_long_sessions(shorts)
     n_synth = len(payloads)
 
     # Fold in real long sessions from the live DB (heavier sample weight).
@@ -371,9 +475,26 @@ def main():
 
     # ---- Pass 1: eval split ----
     all_idx = np.arange(N)
-    tr, va = train_test_split(all_idx, test_size=VAL_SIZE, random_state=SEED, stratify=g)
-    tr, va = np.sort(tr), np.sort(va)
-    print(f"\nPass 1 - eval split  train={len(tr)}  val={len(va)}")
+    synth_idx = np.arange(0, n_synth)
+    real_idx = np.arange(n_synth, N)
+    if n_real >= MIN_REAL_FOR_HOLDOUT:
+        # Honest test = a stratified 30% slice of the REAL long surveys only.
+        # Train = all synthetic + the remaining 70% of real. No synthetic
+        # (hence no duplicated padding) ever reaches the test fold, so the
+        # metrics are not inflated by leakage, and 70% of the real longs still
+        # train the model.
+        r_tr, r_te = train_test_split(
+            real_idx, test_size=LONG_TEST_REAL_FRAC, random_state=SEED, stratify=g[real_idx])
+        tr = np.sort(np.concatenate([synth_idx, r_tr]))
+        va = np.sort(r_te)
+        eval_kind = (f"real-long holdout: {int(LONG_TEST_REAL_FRAC * 100)}% of {n_real} "
+                     f"real longs as test, train = all synthetic + remaining real")
+    else:
+        tr, va = train_test_split(all_idx, test_size=VAL_SIZE, random_state=SEED, stratify=g)
+        tr, va = np.sort(tr), np.sort(va)
+        eval_kind = (f"stratified split over all rows (only {n_real} real longs, "
+                     f"< {MIN_REAL_FOR_HOLDOUT} needed for a real holdout)")
+    print(f"\nPass 1 - eval ({eval_kind})  train={len(tr)}  val={len(va)}")
     grids_eval = build_grids(tr)
     Xg_tr, Xa_tr, Xm_tr = stack(tr, grids_eval)
     Xg_va, Xa_va, Xm_va = stack(va, grids_eval)
@@ -394,6 +515,16 @@ def main():
     p_m = reg_m.predict(Xm_va)
     mae_m, r2_m = mean_absolute_error(m[va], p_m), r2_score(m[va], p_m)
     print(f"  MOOD    MAE={mae_m:.3f}  R2={r2_m:+.3f}")
+
+    # Short-model reference on the SAME held-out real longs (only meaningful
+    # when the test fold is real longs, i.e. the real-long holdout path).
+    short_ref = None
+    if n_real >= MIN_REAL_FOR_HOLDOUT:
+        short_ref = _short_reference([payloads[i] for i in va],
+                                     [labels[i] for i in va], a[va], m[va])
+        if short_ref:
+            print(f"  SHORT-REF (same real longs)  gender AUC={short_ref['gender_auc']:.4f}  "
+                  f"age MAE={short_ref['age_mae']:.2f}  mood MAE={short_ref['mood_mae']:.2f}")
 
     # ---- Pass 2: refit on all rows + emit ----
     print("\nPass 2 - refit on all rows + emit ...")
@@ -430,7 +561,7 @@ def main():
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "kind": "long survey (256 colors) models",
         "data": {
-            "source": "synthetic long rows (quads of short sessions) + real long DB rows (heavier weight)",
+            "source": "duplicate-short synthetic longs (one short replicated 4x) + real long DB rows (heavier weight)",
             "n_short_sessions": len(shorts),
             "n_long_rows": int(N),
             "n_synthetic": int(n_synth),
@@ -440,8 +571,10 @@ def main():
             "quad_size": QUAD,
             "label_mood": "mean of the 4 short moods",
         },
-        "validation": {"kind": "stratified random split", "val_frac": VAL_SIZE,
-                       "n_train": int(len(tr)), "n_val": int(len(va)), "seed": SEED},
+        "validation": {"kind": eval_kind, "test_real_frac": LONG_TEST_REAL_FRAC,
+                       "n_train": int(len(tr)), "n_val": int(len(va)),
+                       "n_real_total": int(n_real), "seed": SEED,
+                       "short_reference": short_ref},
         "n_features": {"gender": int(Xg.shape[1]), "age": int(Xa.shape[1]),
                        "mood": int(Xm.shape[1])},
         "validation_scores": {

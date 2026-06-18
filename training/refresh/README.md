@@ -43,8 +43,17 @@ rebuilds features and retrains on the existing data only.
    rules). Clean **short** rows are appended to `raw/save.ligma` (deduped by id,
    `save.ligma.bak` written first); clean **long** rows are merged into
    `raw/long_real.json`.
+   Each real **long** session is also split into its 4 constituent short
+   surveys (`long = 4 x short + 1`, the reverse of the short->long synthesis)
+   and written to `raw/short_from_long.json`, so the short models train on
+   real shorts derived from longs too. These are the SAME person across all 4
+   sub-shorts (not 4 different people like the synthetic longs). Disable with
+   `--no-decompose-long`. The long synthesis itself only ever reads
+   `save.ligma`, so decomposed shorts are never re-synthesised back into longs.
 2. **Features**: rebuilds `features.npy` / `targets.npz` and `features_extra.npy`
-   in lockstep (identical row selection + order).
+   in lockstep (identical row selection + order). The short-model trainers load
+   their rows through `data_cleaning.load_short_rows()` (save.ligma +
+   short_from_long.json unless `CP_INCLUDE_DECOMPOSED=0`).
 3. **Train** (subprocesses):
    - `lgb-production/train_and_emit.py` - short gender/age/mood
    - `long-models/train_long.py` - long gender/age/mood (real long rows get
@@ -76,6 +85,7 @@ rebuilds features and retrains on the existing data only.
 --major                 bump the major version (+1.0)
 --version X.Y           pin the new version
 --real-long-weight W    sample weight for real long rows (default 3.0)
+--no-decompose-long     do not split real longs into short rows for the short models
 --skip-train            rebuild data + republish HTML only (no model training)
 --dump PATH             ingest a specific dump file
 ```

@@ -60,6 +60,7 @@ AI_ROOT = os.path.normpath(os.path.join(PROJECT_ROOT, ".."))         # ai/
 
 RAW_SOURCE = os.path.join(TRAINING_DIR, "raw", "save.ligma")
 LONG_REAL = os.path.join(TRAINING_DIR, "raw", "long_real.json")
+SHORT_FROM_LONG = os.path.join(TRAINING_DIR, "raw", "short_from_long.json")
 EXTRA_DIR = os.path.join(TRAINING_DIR, "extra-features")
 VERSION_FILE = os.path.join(HERE, "version.json")
 DEFAULT_DUMP = os.path.join(HERE, "remote_dump.json")
@@ -70,6 +71,7 @@ PICK = os.path.join(TRAINING_DIR, "taste-cube", "train_pick.py")
 PICK_LONG = os.path.join(TRAINING_DIR, "taste-cube", "train_pick_long.py")
 
 PROD_SUMMARY = os.path.join(TRAINING_DIR, "lgb-production", "summary.json")
+LONG_SUMMARY = os.path.join(TRAINING_DIR, "long-models", "summary.json")
 PICK_SUMMARY = os.path.join(TRAINING_DIR, "taste-cube", "pick_summary.json")
 PICK_LONG_SUMMARY = os.path.join(TRAINING_DIR, "taste-cube", "pick_long_summary.json")
 
@@ -162,6 +164,42 @@ def ingest(dump_path):
     return stats
 
 
+# ====================== 1b. DECOMPOSE LONG -> SHORT ======================
+
+def decompose_longs(enabled):
+    """Regenerate raw/short_from_long.json from every real long session, so the
+    short models train on real shorts derived from long sessions too. Mirror of
+    the short->long synthesis. Fully regenerated each run (ids are <long>#k), so
+    it is idempotent and picks up longs added in earlier runs."""
+    if not enabled:
+        # Remove any stale file so load_short_rows() can't accidentally fold it
+        # in (and so synthetic-long construction never sees real-long-derived shorts).
+        if os.path.exists(SHORT_FROM_LONG):
+            os.remove(SHORT_FROM_LONG)
+        print("  decomposition off; short models use genuine surveys only (save.ligma)")
+        return
+    if not os.path.exists(LONG_REAL):
+        print("  no real long rows yet -> nothing to decompose")
+        return
+    with open(LONG_REAL, encoding="utf-8") as fh:
+        longs = json.load(fh)
+    rows, kept, dropped = [], 0, 0
+    for it in longs:
+        payload, label = it.get("payload"), it.get("label")
+        if payload is None or label is None:
+            continue
+        for raw in dc.long_payload_to_shorts(payload, label, it.get("id", "L")):
+            if dc.is_valid_clean(raw):
+                rows.append(raw)
+                kept += 1
+            else:
+                dropped += 1
+    with open(SHORT_FROM_LONG, "w", encoding="utf-8") as fh:
+        json.dump(rows, fh)
+    print(f"  decomposed {len(longs)} longs -> {kept} short rows "
+          f"({dropped} failed the troll/duration filter) -> short_from_long.json")
+
+
 # ====================== 2. FEATURES ======================
 
 def _load_module(path, name):
@@ -180,8 +218,7 @@ def rebuild_features():
 
     print("  rebuilding features_extra.npy (no CV) ...")
     extra = _load_module(os.path.join(EXTRA_DIR, "train.py"), "extra_train")
-    with open(RAW_SOURCE, encoding="utf-8") as fh:
-        raw_rows = json.load(fh)
+    raw_rows = dc.load_short_rows()   # same source + order as features.py
     X_extra, names = [], None
     for row in raw_rows:
         if not extra.is_valid(row):
@@ -258,6 +295,22 @@ def bump_version(args, n_rows):
         "age_mae": round(float(scores.get("age_mae", 0.0)), 2),
         "mood_mae": round(float(scores.get("mood_mae", 0.0)), 2),
     }
+    # Long-model metrics (honest real-long holdout). Recorded only when the long
+    # trainer actually had real longs to hold out, so historical short-only
+    # versions stay absent from the long view rather than showing fake numbers.
+    lng = _read_json(LONG_SUMMARY) or {}
+    lscores = lng.get("validation_scores", {})
+    lval = lng.get("validation", {})
+    if lscores and lval.get("n_real_total", 0) >= 30:
+        entry["long_n_rows"] = int(lval.get("n_real_total", 0))
+        entry["long_gender_auc"] = round(float(lscores.get("gender_auc", 0.0)), 3)
+        entry["long_age_mae"] = round(float(lscores.get("age_mae", 0.0)), 2)
+        entry["long_mood_mae"] = round(float(lscores.get("mood_mae", 0.0)), 2)
+        sref = lval.get("short_reference")
+        if sref:
+            entry["short_ref_gender_auc"] = round(float(sref.get("gender_auc", 0.0)), 3)
+            entry["short_ref_age_mae"] = round(float(sref.get("age_mae", 0.0)), 2)
+            entry["short_ref_mood_mae"] = round(float(sref.get("mood_mae", 0.0)), 2)
     # Replace any existing entry with this version, then prepend.
     entries = [e for e in vinfo.get("entries", []) if e.get("version") != new_str]
     entries.insert(0, entry)
@@ -294,6 +347,51 @@ def _versions_rows(entries, lang):
             f'{cell(e["gender_auc"], 3, e["gender_auc"] == best_auc)}\n'
             f'{cell(e["age_mae"], 2, e["age_mae"] == best_age)}\n'
             f'{cell(e["mood_mae"], 2, e["mood_mae"] == best_mood)}\n'
+            "            </tr>"
+        )
+    return "\n".join(out)
+
+
+def _versions_long_rows(entries, lang):
+    label_base = "LightGBM long (production)" if lang == "en" else "LightGBM lang (produksjon)"
+    have = [e for e in entries if e.get("long_gender_auc") is not None]
+    if not have:
+        span = "Long survey models retrain on the next refresh." if lang == "en" \
+            else "Lange modeller trenes på neste oppdatering."
+        return ('            <tr>\n'
+                f'              <td><span class="lb-arch lb-arch-plain">{span}</span></td>\n'
+                '              <td class="lb-score">&mdash;</td>\n'
+                '              <td class="lb-score">&mdash;</td>\n'
+                '              <td class="lb-score">&mdash;</td>\n'
+                '            </tr>')
+    best_auc = max(e["long_gender_auc"] for e in have)
+    best_age = min(e["long_age_mae"] for e in have)
+    best_mood = min(e["long_mood_mae"] for e in have)
+    out = []
+    for e in have:
+        def cell(val, nd, is_best):
+            cls = "lb-score lb-score-best" if is_best else "lb-score"
+            return f'              <td class="{cls}">{_fmt(val, nd)}</td>'
+        out.append(
+            "            <tr>\n"
+            f'              <td><a class="lb-arch-link" href="models/lgb-production">'
+            f'<span class="lb-arch">{label_base} v{e["version"]}</span></a></td>\n'
+            f'{cell(e["long_gender_auc"], 3, e["long_gender_auc"] == best_auc)}\n'
+            f'{cell(e["long_age_mae"], 2, e["long_age_mae"] == best_age)}\n'
+            f'{cell(e["long_mood_mae"], 2, e["long_mood_mae"] == best_mood)}\n'
+            "            </tr>"
+        )
+    # Reference row: the short model scored on the SAME real long surveys, so the
+    # long survey's advantage on its own population is visible (long >= short).
+    newest = have[0]
+    if newest.get("short_ref_gender_auc") is not None:
+        ref = "Short model, same people" if lang == "en" else "Kort modell, samme folk"
+        out.append(
+            '            <tr>\n'
+            f'              <td><span class="lb-arch lb-arch-plain">{ref}</span></td>\n'
+            f'              <td class="lb-score lb-na">{_fmt(newest["short_ref_gender_auc"], 3)}</td>\n'
+            f'              <td class="lb-score lb-na">{_fmt(newest["short_ref_age_mae"], 2)}</td>\n'
+            f'              <td class="lb-score lb-na">{_fmt(newest["short_ref_mood_mae"], 2)}</td>\n'
             "            </tr>"
         )
     return "\n".join(out)
@@ -348,6 +446,7 @@ def publish(vinfo):
         with open(path, encoding="utf-8") as fh:
             html = fh.read()
         html = _replace_region(html, "VERSIONS", _versions_rows(vinfo["entries"], lang))
+        html = _replace_region(html, "VERSIONS_LONG", _versions_long_rows(vinfo["entries"], lang))
         html = _replace_region(html, "PICK", _pick_rows(pick, pick_long, lang))
         html = re.sub(rf"({label}: )\d{{4}}-\d{{2}}-\d{{2}}", rf"\g<1>{today}", html)
         with open(path, "w", encoding="utf-8") as fh:
@@ -366,12 +465,22 @@ def main():
     ap.add_argument("--version", help="set new version explicitly, e.g. 1.2")
     ap.add_argument("--real-long-weight", default="3.0",
                     help="sample weight for real long rows (default 3.0)")
+    ap.add_argument("--decompose-long", dest="decompose_long", action="store_true",
+                    help="ALSO split real long sessions into short rows and feed them to "
+                         "the short models. Default OFF: it measurably lowered short "
+                         "metrics (population mismatch) and the short model already "
+                         "covers shorts well.")
     ap.add_argument("--skip-train", action="store_true",
                     help="rebuild data + republish only (no model training)")
     args = ap.parse_args()
 
+    # The short-model trainers (subprocesses) inherit this; it gates whether
+    # data_cleaning.load_short_rows() folds in the decomposed long->short rows.
+    os.environ["CP_INCLUDE_DECOMPOSED"] = "1" if args.decompose_long else "0"
+
     print("== 1. INGEST ==")
     ingest(args.dump)
+    decompose_longs(args.decompose_long)
 
     print("== 2. FEATURES ==")
     rebuild_features()
