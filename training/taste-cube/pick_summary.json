@@ -1,10 +1,10 @@
 {
-  "trained_at": "2026-06-18T20:31:13.490099+00:00",
+  "trained_at": "2026-06-19T11:02:57.516349+00:00",
   "kind": "colour-pick model (prod person features + client-side candidate features)",
   "smoke": false,
-  "n_sessions": 7043,
+  "n_sessions": 6049,
   "probes_per_session": 8,
-  "n_rows": 225376,
+  "n_rows": 193568,
   "layout": {
     "person": 479,
     "candidate": 33,
@@ -25,25 +25,24 @@
     "verbosity": -1
   },
   "validation": {
-    "kind": "session-level split",
+    "kind": "frozen content-hashed session-level hold-out",
     "val_frac": 0.1,
-    "seed": 42,
     "chance": 0.25
   },
   "results": {
     "A_person_cand": {
-      "auc": 0.7277539674281988,
-      "pick_acc": 0.5072553897180763,
-      "leak_gate": 0.26554726368159204
+      "auc": 0.7214840703285081,
+      "pick_acc": 0.4928861788617886,
+      "leak_gate": 0.26178861788617885
     },
     "B_person_cand_inter": {
-      "auc": 0.7287123525209291,
-      "pick_acc": 0.5132669983416253,
-      "leak_gate": 0.26554726368159204
+      "auc": 0.7249031661048319,
+      "pick_acc": 0.5028455284552845,
+      "leak_gate": 0.26178861788617885
     }
   },
   "emit": {
-    "json_kb": 5313.74,
+    "json_kb": 5316.67,
     "n_trees": 1500,
     "n_nodes": 187500,
     "max_emit_delta": 0.0

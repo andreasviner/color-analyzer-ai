@@ -67,7 +67,7 @@ os.makedirs(JS_OUT_DIR, exist_ok=True)
 # Shared validity + troll filter (must match features.py so the re-parsed
 # bucket vectors line up row-for-row with features.npy).
 sys.path.insert(0, TRAINING_DIR)
-from data_cleaning import is_valid_clean, load_short_rows  # noqa: E402
+from data_cleaning import is_valid_clean, load_short_rows, short_is_holdout  # noqa: E402
 
 SEED = 42
 N_R1 = 16
@@ -287,28 +287,31 @@ def main():
     print("Computing per-session bucket vectors (8x8x8 RGB)...")
     t0 = time.time()
     rows = load_short_rows()
-    discrete_list, smooth_list = [], []
+    discrete_list, smooth_list, valid_rows = [], [], []
     for row in rows:
         if not _is_valid(row):
             continue
         d, s = _compute_deltas(row)
         discrete_list.append(d)
         smooth_list.append(s)
+        valid_rows.append(row)
     discrete = np.array(discrete_list, dtype=np.float32)
     smooth   = np.array(smooth_list,   dtype=np.float32)
     print(f"  shapes {discrete.shape}, {smooth.shape}  ({time.time()-t0:.1f}s)")
     assert discrete.shape[0] == N
 
-    # ---------- Pass 1: random shuffled eval split ----------
-    # Stratified-by-gender 6000 / 710 split so the val fold matches the
-    # train fold's gender ratio. Used purely for reporting metrics.
+    # ---------- Pass 1: frozen content-hashed eval split ----------
+    # Each session lands in train-or-val by a hash of its immutable content, so
+    # the val fold is identical version-to-version except for brand-new
+    # sessions. This removes the split-membership noise that made leaderboard
+    # deltas between versions un-comparable. (Used purely for reporting metrics;
+    # Pass 2 below always refits on the full data, so the deployed trees do not
+    # depend on this split at all.)
     all_idx = np.arange(N)
-    train_idx, val_idx = train_test_split(
-        all_idx, test_size=VAL_SIZE, random_state=SEED, stratify=g,
-    )
-    train_idx = np.sort(train_idx)
-    val_idx   = np.sort(val_idx)
-    print(f"\nPass 1 - random stratified eval split")
+    holdout = np.array([short_is_holdout(r) for r in valid_rows])
+    val_idx   = np.sort(all_idx[holdout])
+    train_idx = np.sort(all_idx[~holdout])
+    print(f"\nPass 1 - frozen content-hashed eval split")
     print(f"  train: {len(train_idx)} rows  ({g[train_idx].mean():.3f} girls, "
           f"age {a[train_idx].mean():.1f}, mood {m[train_idx].mean():.1f})")
     print(f"  val:   {len(val_idx)} rows  ({g[val_idx].mean():.3f} girls, "
@@ -439,11 +442,10 @@ def main():
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "n_total_rows":  int(N),
         "validation": {
-            "kind":     "stratified random split",
+            "kind":     "frozen content-hashed hold-out (sha1 of offered+picks+final)",
             "n_train":  int(len(train_idx)),
             "n_val":    int(len(val_idx)),
-            "stratify": "gender",
-            "seed":     SEED,
+            "holdout_frac": float(len(val_idx)) / float(N),
         },
         "deployment": {
             "fit_on_rows": int(N),
@@ -476,7 +478,8 @@ def main():
     with open(os.path.join(HERE, "summary.json"), "w", encoding="utf-8") as fh:
         json.dump(metadata, fh, indent=2)
 
-    print(f"\nValidation (random stratified 6,000 / 710 split, seed=42)")
+    print(f"\nValidation (frozen content-hashed hold-out, "
+          f"{len(train_idx)} train / {len(val_idx)} val)")
     print(f"  GENDER AUC = {auc_g:.4f}   acc = {acc_g:.4f}   F1 = {f1_g:.4f}")
     print(f"  AGE    MAE = {mae_a:.3f}   R2 = {r2_a:+.3f}")
     print(f"  MOOD   MAE = {mae_m:.3f}   R2 = {r2_m:+.3f}")

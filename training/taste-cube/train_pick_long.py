@@ -41,6 +41,8 @@ import train_long as tl               # noqa: E402  (synthetic long assembly)
 from train_taste import _emit_tree_json, _verify_json  # noqa: E402
 
 TRAINING_DIR = os.path.normpath(os.path.join(HERE, ".."))
+sys.path.insert(0, TRAINING_DIR)
+import data_cleaning as dc             # noqa: E402  (frozen hold-out helper)
 PROJECT_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 RAW_SOURCE = os.path.join(TRAINING_DIR, "raw", "save.ligma")
 JS_OUT_DIR = os.path.normpath(
@@ -90,15 +92,22 @@ def main():
     print("Loading short sessions (served as duplicate-short longs)...")
     with open(RAW_SOURCE, encoding="utf-8") as fh:
         raw = json.load(fh)
-    shorts = [tl._parse_short(r) for r in raw if tl._is_valid(r)]
+    raw = dc.dedupe_short_rows(raw)  # one row per unique survey (same as the short models)
+    valid_raw = [r for r in raw if tl._is_valid(r)]
+    shorts = [tl._parse_short(r) for r in valid_raw]
     if smoke:
         shorts = shorts[:120]
+        valid_raw = valid_raw[:120]
     # Duplicate-short: each short is served as one coherent person's long (the
     # short replicated 4x), same as the long gender/age/mood model. The probe
     # builder removes the probed question from the short BEFORE duplicating, so
     # the answer cannot leak through the duplicate blocks.
     for i, s in enumerate(shorts):
         s["id"] = i
+    # Frozen content-hashed hold-out on the SOURCE short (same hold-out the
+    # short pick model uses), so the long pick metric is stable across versions
+    # and scored on the same people as the rest of the short leaderboard.
+    sess_holdout = [dc.short_is_holdout(r) for r in valid_raw]
     sessions = shorts
     print(f"  {len(shorts)} short sessions -> duplicate-short longs (built per probe)")
 
@@ -108,7 +117,7 @@ def main():
     cap = len(sessions) * pfl.PROBES_PER_SESSION_LONG * 4
     X = np.zeros((cap, TOTAL), dtype=np.float32)
     y = np.zeros(cap, dtype=np.int8)
-    sid, gid = [], []
+    sid, gid, hid = [], [], []
     n = 0
     for k, s in enumerate(sessions):
         for row, label, g in pfl.build_probe_rows(s):
@@ -116,6 +125,7 @@ def main():
             y[n] = label
             sid.append(s["id"])
             gid.append(g)
+            hid.append(sess_holdout[k])
             n += 1
         if (k + 1) % 200 == 0:
             rate = (k + 1) / (time.time() - t1)
@@ -125,14 +135,11 @@ def main():
     print(f"  X {X.shape}  positives {int(y.sum())} ({y.mean()*100:.1f}%)  "
           f"build {time.time()-t1:.0f}s")
 
-    # ---- Pass 1: session-level split ----
-    uniq = sorted(set(sid))
-    tr_s, va_s = train_test_split(uniq, test_size=VAL_SIZE, random_state=SEED)
-    tr_set, va_set = set(tr_s), set(va_s)
-    tr = np.array([i for i in range(n) if sid[i] in tr_set])
-    va = np.array([i for i in range(n) if sid[i] in va_set])
+    # ---- Pass 1: frozen content-hashed session-level split ----
+    tr = np.array([i for i in range(n) if not hid[i]])
+    va = np.array([i for i in range(n) if hid[i]])
     gva = [gid[i] for i in va]
-    print(f"\nPass 1 - session split  train_rows={len(tr)}  val_rows={len(va)}")
+    print(f"\nPass 1 - frozen hold-out split  train_rows={len(tr)}  val_rows={len(va)}")
 
     clf = lgb.LGBMClassifier(**PARAMS).fit(X[tr], y[tr])
     auc = roc_auc_score(y[va], clf.predict_proba(X[va])[:, 1])
@@ -186,8 +193,8 @@ def main():
             "n_rows": int(n),
             "layout": LAYOUT,
             "params": PARAMS,
-            "validation": {"kind": "session-level split", "val_frac": VAL_SIZE,
-                           "seed": SEED, "chance": 0.25,
+            "validation": {"kind": "frozen content-hashed session-level hold-out",
+                           "val_frac": VAL_SIZE, "chance": 0.25,
                            "auc": float(auc), "pick_accuracy": float(acc),
                            "leak_gate": float(gate)},
             "emit": emit_stats,

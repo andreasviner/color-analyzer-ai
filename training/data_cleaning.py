@@ -32,6 +32,8 @@ those questions is under SPAM_FAST_MEAN_MS. Tune SPAM_FAST_MEAN_MS up toward
 infinity for a pure position-only rule, or down to 0 to disable the spam gate.
 """
 
+import hashlib
+import json
 import os
 from collections import Counter
 
@@ -57,6 +59,84 @@ TROLL_AGES = frozenset({67, 69})
 
 SPAM_SAME_POS_FRAC = 0.90   # > 90 % of round-0 picks on one corner
 SPAM_FAST_MEAN_MS = 2000    # ...and faster than this mean per-pick time = spam
+
+# ---------- frozen content-hashed hold-out (stable eval split) ----------
+#
+# Leaderboard noise between versions came from re-deriving the train/val split
+# on every retrain: a fixed RNG seed still reshuffles WHICH rows land in the
+# fold once the dataset changes, so two versions were scored on different test
+# rows (a few-hundred-row fold swings gender AUC by +-0.015, age MAE by +-0.45).
+# Instead we assign every session to train-or-test by a hash of its IMMUTABLE
+# content (offered colours + the pick string + the final colour). A given
+# session therefore lands in the same fold forever; ingesting new data only
+# adds new sessions to whichever side their hash already dictates, it never
+# moves an existing one across the line. The split is content-addressed (no
+# state file to keep in sync) and scales automatically as data grows.
+#
+# Two duplicate sessions (identical content) hash alike and so land on the same
+# side together, which also prevents an accidental train/test leak of a repeat.
+
+HOLDOUT_FRAC = 0.10        # short sessions reserved for eval (~ the old 710)
+HOLDOUT_FRAC_LONG = 0.30   # real long sessions reserved for eval (longs scarce)
+
+
+def _holdout_unit(key) -> float:
+    """Deterministic value in [0, 1) from a content key (top 32 bits of SHA-1)."""
+    h = hashlib.sha1(key.encode("utf-8")).hexdigest()
+    return int(h[:8], 16) / 0x1_0000_0000
+
+
+def short_holdout_key(row) -> str:
+    """Immutable fingerprint of a short raw row (save.ligma layout): the offered
+    colours + the pick string + the final colour. The offered grid is generated
+    fresh per session, so this is effectively unique and never changes."""
+    farger = row[8]
+    return json.dumps([farger[0], str(row[6]), farger[3]], separators=(",", ":"))
+
+
+def short_is_holdout(row, frac: float = HOLDOUT_FRAC) -> bool:
+    """True if this short session is permanently in the eval hold-out."""
+    return _holdout_unit(short_holdout_key(row)) < frac
+
+
+def long_holdout_key(payload) -> str:
+    """Immutable fingerprint of a real long session payload."""
+    return json.dumps([payload["offered"], str(payload["valg"]), payload["final"]],
+                      separators=(",", ":"))
+
+
+def long_is_holdout(payload, frac: float = HOLDOUT_FRAC_LONG) -> bool:
+    """True if this real long session is permanently in the eval hold-out."""
+    return _holdout_unit(long_holdout_key(payload)) < frac
+
+
+def dedupe_short_rows(rows):
+    """Drop exact content-duplicate short sessions, keeping the first occurrence.
+
+    About a quarter of save.ligma rows are literal repeats: an identical offered
+    grid (which is generated randomly per session, so a match is not chance) plus
+    identical picks and final colour, i.e. the same survey submitted more than
+    once. Duplicates over-weight the deployed model (the largest repeat group is
+    18 copies) and, before the frozen content-hashed hold-out, leaked the same
+    session across train and test. Keeping one representative per content key
+    fixes both; which copy survives does not matter because the hold-out is keyed
+    on the same content. Rows whose content cannot be keyed (malformed) are kept
+    as-is so the normal validity filter can drop them.
+    """
+    seen = set()
+    out = []
+    for r in rows:
+        try:
+            k = short_holdout_key(r)
+        except Exception:
+            out.append(r)
+            continue
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(r)
+    return out
+
 
 # Gender codes: live DB stores 0=man, 1=woman, 2=non-binary. The raw row format
 # uses "g" (gutt/boy = 0) and "j" (jente/girl = 1). Non-binary (2) has no raw
@@ -317,4 +397,4 @@ def load_short_rows(save_path=None):
     if os.environ.get("CP_INCLUDE_DECOMPOSED", "1") != "0" and os.path.exists(_SHORT_FROM_LONG):
         with open(_SHORT_FROM_LONG, encoding="utf-8") as fh:
             rows = rows + json.load(fh)
-    return rows
+    return dedupe_short_rows(rows)

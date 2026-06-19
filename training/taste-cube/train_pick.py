@@ -39,7 +39,7 @@ PROJECT_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 RAW_SOURCE = os.path.join(TRAINING_DIR, "raw", "save.ligma")
 
 sys.path.insert(0, TRAINING_DIR)
-from data_cleaning import is_valid_clean, load_short_rows  # noqa: E402
+from data_cleaning import is_valid_clean, load_short_rows, short_is_holdout  # noqa: E402
 JS_OUT_DIR = os.path.normpath(
     os.path.join(PROJECT_ROOT, "..", "english_html", "color-polygraph", "models-js"))
 os.makedirs(JS_OUT_DIR, exist_ok=True)
@@ -116,9 +116,13 @@ def main():
 
     print("Loading sessions...")
     raw = load_short_rows()
-    sessions = [_parse(r) for r in raw if _is_valid(r)]
+    valid_raw = [r for r in raw if _is_valid(r)]
+    sessions = [_parse(r) for r in valid_raw]
+    # Frozen content-hashed hold-out, per session, aligned to `sessions`.
+    sess_holdout = [short_is_holdout(r) for r in valid_raw]
     if smoke:
         sessions = sessions[:300]
+        sess_holdout = sess_holdout[:300]
     print(f"  {len(sessions)} sessions   layout {LAYOUT}")
 
     print(f"Building rows ({pf.PROBES_PER_SESSION} probes/person, prod features per probe)...")
@@ -127,7 +131,7 @@ def main():
     cap = len(sessions) * pf.PROBES_PER_SESSION * 4
     X = np.zeros((cap, TOTAL), dtype=np.float32)
     y = np.zeros(cap, dtype=np.int8)
-    sid, gid = [], []
+    sid, gid, hid = [], [], []
     n = 0
     for k, s in enumerate(sessions):
         for row, label, g in pf.build_probe_rows(s):
@@ -135,6 +139,7 @@ def main():
             y[n] = label
             sid.append(s["id"])
             gid.append(g)
+            hid.append(sess_holdout[k])
             n += 1
         if (k + 1) % 500 == 0:
             rate = (k + 1) / (time.time() - t1)
@@ -144,12 +149,11 @@ def main():
     print(f"  X {X.shape}  positives {int(y.sum())} ({y.mean()*100:.1f}%)  "
           f"build {time.time()-t1:.0f}s")
 
-    # Fixed session-level split.
-    uniq = sorted(set(sid))
-    tr_s, va_s = train_test_split(uniq, test_size=VAL_SIZE, random_state=SEED)
-    tr_set, va_set = set(tr_s), set(va_s)
-    tr = np.array([i for i in range(n) if sid[i] in tr_set])
-    va = np.array([i for i in range(n) if sid[i] in va_set])
+    # Frozen content-hashed session-level split (same hold-out as the short
+    # gender/age/mood model, so the whole short leaderboard scores the same
+    # people, and the same people every version).
+    tr = np.array([i for i in range(n) if not hid[i]])
+    va = np.array([i for i in range(n) if hid[i]])
     gva = [gid[i] for i in va]
     print(f"  train_rows={len(tr)}  val_rows={len(va)}")
 
@@ -221,8 +225,8 @@ def main():
             "n_rows": int(n),
             "layout": LAYOUT,
             "params": PARAMS,
-            "validation": {"kind": "session-level split", "val_frac": VAL_SIZE,
-                           "seed": SEED, "chance": 0.25},
+            "validation": {"kind": "frozen content-hashed session-level hold-out",
+                           "val_frac": VAL_SIZE, "chance": 0.25},
             "results": results,
             "emit": emit_stats,
         }, fh, indent=2)

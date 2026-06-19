@@ -66,7 +66,8 @@ import math                 # noqa: E402
 # and for any real long sessions folded in.
 sys.path.insert(0, TRAINING_DIR)
 from data_cleaning import (  # noqa: E402
-    is_valid_clean, is_valid_long_clean, long_payload_to_shorts)
+    is_valid_clean, is_valid_long_clean, long_payload_to_shorts, long_is_holdout,
+    dedupe_short_rows)
 
 
 def _load_short_trees():
@@ -411,6 +412,7 @@ def main():
     print("Loading short sessions...")
     with open(RAW_SOURCE, encoding="utf-8") as fh:
         rows = json.load(fh)
+    rows = dedupe_short_rows(rows)  # one row per unique survey (same as the short models)
     shorts = [_parse_short(r) for r in rows if _is_valid(r)]
     print(f"  {len(shorts)} valid short sessions")
 
@@ -478,17 +480,24 @@ def main():
     synth_idx = np.arange(0, n_synth)
     real_idx = np.arange(n_synth, N)
     if n_real >= MIN_REAL_FOR_HOLDOUT:
-        # Honest test = a stratified 30% slice of the REAL long surveys only.
-        # Train = all synthetic + the remaining 70% of real. No synthetic
-        # (hence no duplicated padding) ever reaches the test fold, so the
-        # metrics are not inflated by leakage, and 70% of the real longs still
-        # train the model.
-        r_tr, r_te = train_test_split(
-            real_idx, test_size=LONG_TEST_REAL_FRAC, random_state=SEED, stratify=g[real_idx])
+        # Honest test = a FROZEN ~30% slice of the REAL long surveys, chosen by
+        # a hash of each session's content so the same longs stay in test every
+        # retrain (comparable metrics across versions). Train = all synthetic +
+        # the remaining real. No synthetic (hence no duplicated padding) ever
+        # reaches the test fold, so the metrics are not inflated by leakage, and
+        # ~70% of the real longs still train the model.
+        real_hold = np.array([long_is_holdout(p) for p in real_payloads])
+        r_te = real_idx[real_hold]
+        r_tr = real_idx[~real_hold]
+        # Degenerate fold (too few, or one gender only) -> fall back to the old
+        # seeded stratified slice so the eval still produces a usable AUC.
+        if len(r_te) < 5 or len(set(g[r_te].tolist())) < 2:
+            r_tr, r_te = train_test_split(
+                real_idx, test_size=LONG_TEST_REAL_FRAC, random_state=SEED, stratify=g[real_idx])
         tr = np.sort(np.concatenate([synth_idx, r_tr]))
         va = np.sort(r_te)
-        eval_kind = (f"real-long holdout: {int(LONG_TEST_REAL_FRAC * 100)}% of {n_real} "
-                     f"real longs as test, train = all synthetic + remaining real")
+        eval_kind = (f"frozen content-hashed real-long holdout: ~{int(LONG_TEST_REAL_FRAC * 100)}% "
+                     f"of {n_real} real longs as test, train = all synthetic + remaining real")
     else:
         tr, va = train_test_split(all_idx, test_size=VAL_SIZE, random_state=SEED, stratify=g)
         tr, va = np.sort(tr), np.sort(va)

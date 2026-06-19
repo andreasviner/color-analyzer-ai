@@ -38,7 +38,7 @@ SOURCE = os.path.join(DATA_DIR, "raw", "save.ligma")
 # Shared validity + troll filter: must match features.py exactly so X_extra
 # lines up row-for-row with features.npy.
 sys.path.insert(0, DATA_DIR)
-from data_cleaning import is_valid_clean  # noqa: E402
+from data_cleaning import is_valid_clean, dedupe_short_rows  # noqa: E402
 
 N_FOLDS = 5
 SEED = 42
@@ -264,6 +264,7 @@ def main():
     print("Computing extra features...")
     with open(SOURCE, "r", encoding="utf-8") as fh:
         rows = json.load(fh)
+    rows = dedupe_short_rows(rows)  # row-align with features.npy (deduped loader)
 
     X_extra = []
     extra_names = None
