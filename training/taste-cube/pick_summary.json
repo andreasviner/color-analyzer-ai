@@ -1,10 +1,12 @@
 {
-  "trained_at": "2026-06-24T15:42:44.823321+00:00",
-  "kind": "colour-pick model (prod person features + client-side candidate features)",
+  "trained_at": "2026-06-24T18:06:13.257525+00:00",
+  "kind": "colour-pick model (real-long-derived: untouched profile sub-survey + cross-sub-survey round-0 targets, no overwrite)",
   "smoke": false,
-  "n_sessions": 11396,
-  "probes_per_session": 8,
-  "n_rows": 364672,
+  "n_train_longs": 920,
+  "n_val_longs": 406,
+  "n_train_groups": 176320,
+  "n_val_groups": 77952,
+  "n_rows": 1017088,
   "layout": {
     "person": 479,
     "candidate": 33,
@@ -25,24 +27,17 @@
     "verbosity": -1
   },
   "validation": {
-    "kind": "frozen content-hashed session-level hold-out",
-    "val_frac": 0.1,
-    "chance": 0.25
+    "kind": "per-long hold-out (worldwide cohort); long_is_holdout, chance=0.25"
   },
   "results": {
-    "A_person_cand": {
-      "auc": 0.7216457175747706,
-      "pick_acc": 0.49373990306946686,
-      "leak_gate": 0.2611066235864297
-    },
     "B_person_cand_inter": {
-      "auc": 0.7238055200685873,
-      "pick_acc": 0.4991922455573506,
-      "leak_gate": 0.2611066235864297
+      "auc": 0.7636987715054344,
+      "pick_acc": 0.5604346264367817,
+      "leak_gate": 0.263123460591133
     }
   },
   "emit": {
-    "json_kb": 5317.07,
+    "json_kb": 5325.93,
     "n_trees": 1500,
     "n_nodes": 187500,
     "max_emit_delta": 0.0

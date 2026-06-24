@@ -1,17 +1,31 @@
 """
-Train the colour-pick model: person (prod features, probe overwritten) +
-4 new colours -> which one would they pick.
+Train the colour-pick model: person (prod features) + 4 new colours -> which
+one would they pick. Binary LightGBM scoring one candidate at a time; the
+prediction for "4 new colours" is the argmax of the 4 scores.
 
-The model is a binary LightGBM scoring one candidate at a time; the prediction
-for "4 new colours" is the argmax of the 4 scores. Two variants are evaluated:
+TRAINING DATA -- real long surveys, no synthetic overwrite (the previous scheme
+cloned a "loser" question over another within ONE short survey to fabricate a
+leak-free probe). A real long survey is four short sub-surveys from the SAME
+person, so we get authentic probes for free:
 
-    A: person(479 prod) + candidate descriptors
-    B: person(479 prod) + candidate descriptors + interaction block
+    PROFILE = one sub-survey, prod-features computed UNTOUCHED (= a real short
+              survey, exactly what the deployed model sees at inference)
+    TARGET  = a round-0 question from a DIFFERENT sub-survey of the same long:
+              its 4 offered colours are the candidates, the person's actual
+              pick is the label
 
-Both are scored on the same fixed session-level validation split with
-holdout pick-accuracy (chance = 0.25) plus a leakage gate (candidate columns
-blanked -> the model must fall to chance, proving the overwritten prod
-features contain no trace of the probe's answer).
+Because the target question lives in a different sub-survey, the profile's
+features structurally cannot contain it -> leak-free with no overwrite, the
+profile is undistorted, and every round-0 question of the other sub-surveys is
+usable (not just losers). We use ALL available probe groups per long
+(profile k x other sub-survey j x 16 round-0 questions ~= 192/long); a
+data-volume sweep showed accuracy plateaus by ~32 groups/long but more is free
+and never hurts (leak-gate stays at chance throughout).
+
+The hold-out is per LONG (long_is_holdout) so a person's profile and targets
+never straddle train/val. The held-out longs ARE the worldwide cohort, so the
+reported pick accuracy is the worldwide gate -- the number to steer by, not the
+legacy-2020-Oslo-dominated short hold-out.
 
 Run:  python train_pick.py [--smoke]
 """
@@ -25,31 +39,26 @@ from datetime import datetime, timezone
 import numpy as np
 import lightgbm as lgb
 from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import train_test_split
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import pick_features as pf  # noqa: E402
 import taste_features as tfeat  # noqa: E402
-# Flat-tree JSON emit + bit-exact verification, shared with train_taste.py.
 from train_taste import _emit_tree_json, _verify_json  # noqa: E402
 
 TRAINING_DIR = os.path.normpath(os.path.join(HERE, ".."))
 PROJECT_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
-RAW_SOURCE = os.path.join(TRAINING_DIR, "raw", "save.ligma")
+LONG_REAL = os.path.join(TRAINING_DIR, "raw", "long_real.json")
 
 sys.path.insert(0, TRAINING_DIR)
-from data_cleaning import is_valid_clean, load_short_rows, short_is_holdout  # noqa: E402
+import data_cleaning as dc  # noqa: E402
 JS_OUT_DIR = os.path.normpath(
     os.path.join(PROJECT_ROOT, "..", "english_html", "color-polygraph", "models-js"))
 os.makedirs(JS_OUT_DIR, exist_ok=True)
 
 SEED = 42
-VAL_SIZE = 0.10
-DURATION_MIN_MS = 15_000
-DURATION_MAX_MS = 600_000
+N_R0 = 16  # round-0 questions per sub-survey
 
-# Tuned on the fingerprint model (tune_taste.py); good starting point here.
 PARAMS = dict(
     n_estimators=1500, num_leaves=63, learning_rate=0.015,
     feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=5,
@@ -59,42 +68,72 @@ PARAMS = dict(
 
 LAYOUT = pf.layout(with_interactions=True)
 PERSON = LAYOUT["person"]
-CAND = LAYOUT["candidate"]
-INTER = LAYOUT["interaction"]
 TOTAL = LAYOUT["total"]
 
 
-def _is_valid(row):
-    # Shared validity + troll filter, plus the pick model's stricter need for a
-    # full 21-char valg (round-1 16 + round-2 4 + final).
-    if not is_valid_clean(row):
-        return False
-    try:
-        return len(row[6]) >= 21
-    except Exception:
-        return False
+def sub_payloads(it):
+    """The long's valid sub-surveys (save.ligma layout -> dicts)."""
+    rows = dc.long_payload_to_shorts(it["payload"], it["label"], it.get("id", "L"))
+    subs = []
+    for r in rows:
+        if not dc.is_valid_clean(r) or len(r[6]) < 21:
+            continue
+        subs.append({
+            "offered": [list(c) for c in r[8][0][:64]],
+            "r1": [list(c) for c in r[8][1][:16]],
+            "r2": [list(c) for c in r[8][2][:4]],
+            "final": list(r[8][3]),
+            "valg": r[6][:21],
+            "tider": [int(x) for x in r[7][:21]],
+            "time": int(r[1]) if str(r[1]).lstrip("-").isdigit() else 0,
+        })
+    return subs
 
 
-def _parse(row):
-    return {
-        "id": row[0],
-        "time": int(row[1]) if str(row[1]).lstrip("-").isdigit() else 0,
-        "offered": [list(c) for c in row[8][0][:64]],
-        "r1": [list(c) for c in row[8][1][:16]],
-        "r2": [list(c) for c in row[8][2][:4]],
-        "final": list(row[8][3]),
-        "valg": row[6][:21],
-        "tider": [int(x) for x in row[7][:21]],
-    }
+def _person_ctx(sub):
+    pay = {"offered": sub["offered"], "r1": sub["r1"], "r2": sub["r2"],
+           "final": sub["final"], "valg": sub["valg"], "tider": sub["tider"]}
+    pv = np.asarray(pf.person_vector(pay, sub["time"]), dtype=np.float32)
+    ctx = tfeat.session_context(sub["r1"], sub["r2"], sub["final"])
+    return pv, ctx
 
 
-def pick_accuracy(model, X, y, groups, cols=None, blank_from=None):
+def build_long_groups(subs):
+    """All probe groups for one long: list of (rows4[4,TOTAL], pick).
+    profile sub-survey k (pv+ctx) x other sub-survey j x round-0 question q."""
+    cache = [_person_ctx(s) for s in subs]
+    groups = []
+    for k in range(len(subs)):
+        pv, ctx = cache[k]
+        pv_list = pv.tolist()
+        for j in range(len(subs)):
+            if j == k:
+                continue
+            tj = subs[j]
+            for q in range(N_R0):
+                try:
+                    pick = int(tj["valg"][q])
+                except (ValueError, IndexError):
+                    continue
+                if not (0 <= pick <= 3):
+                    continue
+                quad = tj["offered"][q * 4:(q + 1) * 4]
+                if len(quad) < 4:
+                    continue
+                rows4 = np.empty((4, TOTAL), dtype=np.float32)
+                for idx in range(4):
+                    rows4[idx] = pv_list + pf.candidate_vector(quad[idx]) + \
+                        pf.interaction_vector(quad[idx], ctx)
+                groups.append((rows4, pick))
+    return groups
+
+
+def pick_accuracy(model, X, y, groups, blank_from=None):
     """Per probe group of 4, does argmax score match the actual pick?
-    cols: optional column slice (use only the first `cols` columns).
     blank_from: zero out columns >= blank_from (leakage gate)."""
-    Xs = X[:, :cols] if cols else X
+    Xs = X
     if blank_from is not None:
-        Xs = Xs.copy()
+        Xs = X.copy()
         Xs[:, blank_from:] = 0.0
     raw = model.predict(Xs, raw_score=True)
     by = {}
@@ -110,84 +149,79 @@ def pick_accuracy(model, X, y, groups, cols=None, blank_from=None):
     return ok / tot if tot else 0.0
 
 
+def _assemble(group_recs):
+    """group_recs: list of (rows4, pick). Returns X, y, group-id array."""
+    ng = len(group_recs)
+    X = np.empty((ng * 4, TOTAL), dtype=np.float32)
+    y = np.zeros(ng * 4, dtype=np.int8)
+    gid = np.empty(ng * 4, dtype=np.int32)
+    for gi, (rows4, pick) in enumerate(group_recs):
+        X[gi * 4:gi * 4 + 4] = rows4
+        y[gi * 4 + pick] = 1
+        gid[gi * 4:gi * 4 + 4] = gi
+    return X, y, gid
+
+
 def main():
     smoke = "--smoke" in sys.argv
     t0 = time.time()
 
-    print("Loading sessions...")
-    raw = load_short_rows()
-    valid_raw = [r for r in raw if _is_valid(r)]
-    sessions = [_parse(r) for r in valid_raw]
-    # Frozen content-hashed hold-out, per session, aligned to `sessions`.
-    sess_holdout = [short_is_holdout(r) for r in valid_raw]
+    print("Loading real long surveys...")
+    longs = [it for it in json.load(open(LONG_REAL, encoding="utf-8"))
+             if it.get("payload") and it.get("label")]
     if smoke:
-        sessions = sessions[:300]
-        sess_holdout = sess_holdout[:300]
-    print(f"  {len(sessions)} sessions   layout {LAYOUT}")
+        longs = longs[:60]
+    print(f"  {len(longs)} longs   layout {LAYOUT}")
 
-    print(f"Building rows ({pf.PROBES_PER_SESSION} probes/person, prod features per probe)...")
+    print("Building probe groups (profile sub-survey + cross-sub-survey round-0 targets)...")
     t1 = time.time()
-    # Preallocate: rows = sessions * probes * 4 upper bound.
-    cap = len(sessions) * pf.PROBES_PER_SESSION * 4
-    X = np.zeros((cap, TOTAL), dtype=np.float32)
-    y = np.zeros(cap, dtype=np.int8)
-    sid, gid, hid = [], [], []
-    n = 0
-    for k, s in enumerate(sessions):
-        for row, label, g in pf.build_probe_rows(s):
-            X[n] = row
-            y[n] = label
-            sid.append(s["id"])
-            gid.append(g)
-            hid.append(sess_holdout[k])
-            n += 1
-        if (k + 1) % 500 == 0:
-            rate = (k + 1) / (time.time() - t1)
-            print(f"  {k+1}/{len(sessions)} sessions  ({rate:.0f}/s, "
-                  f"eta {(len(sessions)-k-1)/rate:.0f}s)")
-    X, y = X[:n], y[:n]
-    print(f"  X {X.shape}  positives {int(y.sum())} ({y.mean()*100:.1f}%)  "
-          f"build {time.time()-t1:.0f}s")
+    train_recs, val_recs, n_tr_long, n_va_long = [], [], 0, 0
+    for n, it in enumerate(longs):
+        subs = sub_payloads(it)
+        if len(subs) < 2:
+            continue
+        g = build_long_groups(subs)
+        if not g:
+            continue
+        if dc.long_is_holdout(it["payload"]):
+            val_recs.extend(g)
+            n_va_long += 1
+        else:
+            train_recs.extend(g)
+            n_tr_long += 1
+        if (n + 1) % 200 == 0:
+            rate = (n + 1) / (time.time() - t1)
+            print(f"  {n+1}/{len(longs)} longs  ({rate:.0f}/s, "
+                  f"eta {(len(longs)-n-1)/rate:.0f}s)")
+    Xtr, ytr, _ = _assemble(train_recs)
+    Xva, yva, gva = _assemble(val_recs)
+    print(f"  train: {n_tr_long} longs, {len(train_recs)} groups, {len(ytr)} rows")
+    print(f"  val:   {n_va_long} longs, {len(val_recs)} groups, {len(yva)} rows  "
+          f"(build {time.time()-t1:.0f}s)")
 
-    # Frozen content-hashed session-level split (same hold-out as the short
-    # gender/age/mood model, so the whole short leaderboard scores the same
-    # people, and the same people every version).
-    tr = np.array([i for i in range(n) if not hid[i]])
-    va = np.array([i for i in range(n) if hid[i]])
-    gva = [gid[i] for i in va]
-    print(f"  train_rows={len(tr)}  val_rows={len(va)}")
+    # ---- Pass 1: worldwide gate (held-out longs) ----
+    print("\nPass 1 - worldwide gate (held-out longs)")
+    clf = lgb.LGBMClassifier(**PARAMS).fit(Xtr, ytr)
+    auc = roc_auc_score(yva, clf.predict_proba(Xva)[:, 1])
+    acc = pick_accuracy(clf, Xva, yva, gva)
+    gate = pick_accuracy(clf, Xva, yva, gva, blank_from=PERSON)
+    print(f"  AUC={auc:.4f}  pick-accuracy={acc:.4f}  leak-gate={gate:.4f} (want ~0.25)")
 
-    results = {}
-
-    # ---- Variant A: person + candidate descriptors ----
-    print("\nVariant A: prod person + candidate descriptors")
-    colsA = PERSON + CAND
-    clfA = lgb.LGBMClassifier(**PARAMS).fit(X[tr][:, :colsA], y[tr])
-    aucA = roc_auc_score(y[va], clfA.predict_proba(X[va][:, :colsA])[:, 1])
-    accA = pick_accuracy(clfA, X[va], y[va], gva, cols=colsA)
-    gateA = pick_accuracy(clfA, X[va], y[va], gva, cols=colsA, blank_from=PERSON)
-    print(f"  AUC={aucA:.4f}  pick-accuracy={accA:.4f}  leak-gate={gateA:.4f} (want ~0.25)")
-    results["A_person_cand"] = dict(auc=float(aucA), pick_acc=float(accA), leak_gate=float(gateA))
-
-    # ---- Variant B: + interaction block ----
-    print("\nVariant B: + interaction block (candidate vs the person's winners)")
-    clfB = lgb.LGBMClassifier(**PARAMS).fit(X[tr], y[tr])
-    aucB = roc_auc_score(y[va], clfB.predict_proba(X[va])[:, 1])
-    accB = pick_accuracy(clfB, X[va], y[va], gva)
-    gateB = pick_accuracy(clfB, X[va], y[va], gva, blank_from=PERSON)
-    print(f"  AUC={aucB:.4f}  pick-accuracy={accB:.4f}  leak-gate={gateB:.4f} (want ~0.25)")
-    results["B_person_cand_inter"] = dict(auc=float(aucB), pick_acc=float(accB), leak_gate=float(gateB))
-
-    # ---- Pass 2: refit variant B (the winner) on ALL rows + emit ----
+    # ---- Pass 2: refit on ALL groups + emit ----
     emit_stats = {}
+    n_tr_groups, n_va_groups = len(train_recs), len(val_recs)
+    n_rows_total = int(len(ytr) + len(yva))
+    del Xtr, ytr, Xva, yva, gva, clf   # free Pass-1 matrices before the full-data one
     if not smoke:
-        print("\nPass 2 - refit variant B on all rows + emit ...")
-        prod_clf = lgb.LGBMClassifier(**PARAMS).fit(X, y)
+        print("\nPass 2 - refit on all groups + emit ...")
+        Xall, yall, _ = _assemble(train_recs + val_recs)
+        train_recs, val_recs = [], []   # release the per-group record lists
+        prod_clf = lgb.LGBMClassifier(**PARAMS).fit(Xall, yall)
         out = os.path.join(JS_OUT_DIR, "pick_trees.json")
         n_trees, n_nodes = _emit_tree_json(prod_clf.booster_, out, "binary")
         rng = np.random.RandomState(SEED)
-        sample = rng.choice(n, min(64, n), replace=False)
-        delta = _verify_json(out, prod_clf.booster_, X[sample])
+        sample = rng.choice(len(yall), min(64, len(yall)), replace=False)
+        delta = _verify_json(out, prod_clf.booster_, Xall[sample])
         if delta > 1e-5:
             raise SystemExit(f"pick_trees.json diverged from LightGBM by {delta:.3e}")
         kb = os.path.getsize(out) / 1024
@@ -195,13 +229,17 @@ def main():
                       "max_emit_delta": float(delta)}
         print(f"  pick_trees.json  {kb:.1f} KB  trees={n_trees} nodes={n_nodes}  |delta|<{delta:.1e}")
 
-        # Parity fixture for the JS mirror: only the candidate + interaction
-        # blocks are computed in the browser (the person vector arrives from
-        # the worker), so that is what the fixture covers.
+        # Parity fixture for the JS mirror: candidate + interaction blocks only
+        # (the person vector arrives from the worker). Profile sub-surveys are
+        # short-shaped, same as deployment.
         test_colors = [[230, 40, 40], [40, 80, 220], [240, 230, 60],
                        [30, 170, 80], [200, 120, 200], [25, 25, 25]]
         parity = []
-        for s in sessions[:8]:
+        for it in longs[:8]:
+            subs = sub_payloads(it)
+            if not subs:
+                continue
+            s = subs[0]
             ctx = tfeat.session_context(s["r1"], s["r2"], s["final"])
             parity.append({
                 "r1": s["r1"], "r2": s["r2"], "final": s["final"],
@@ -215,19 +253,25 @@ def main():
             json.dump({"layout": LAYOUT, "samples": parity}, fh)
         print(f"  pick_parity.json  {len(parity)} samples")
 
+    # Summary (keeps the B_person_cand_inter key the orchestrator reads; the
+    # numbers are now the worldwide per-long gate, not the legacy short fold).
     with open(os.path.join(HERE, "pick_summary.json"), "w", encoding="utf-8") as fh:
         json.dump({
             "trained_at": datetime.now(timezone.utc).isoformat(),
-            "kind": "colour-pick model (prod person features + client-side candidate features)",
+            "kind": "colour-pick model (real-long-derived: untouched profile sub-survey "
+                    "+ cross-sub-survey round-0 targets, no overwrite)",
             "smoke": smoke,
-            "n_sessions": len(sessions),
-            "probes_per_session": pf.PROBES_PER_SESSION,
-            "n_rows": int(n),
+            "n_train_longs": n_tr_long,
+            "n_val_longs": n_va_long,
+            "n_train_groups": n_tr_groups,
+            "n_val_groups": n_va_groups,
+            "n_rows": n_rows_total,
             "layout": LAYOUT,
             "params": PARAMS,
-            "validation": {"kind": "frozen content-hashed session-level hold-out",
-                           "val_frac": VAL_SIZE, "chance": 0.25},
-            "results": results,
+            "validation": {"kind": "per-long hold-out (worldwide cohort); "
+                                   "long_is_holdout, chance=0.25"},
+            "results": {"B_person_cand_inter": dict(
+                auc=float(auc), pick_acc=float(acc), leak_gate=float(gate))},
             "emit": emit_stats,
         }, fh, indent=2)
 

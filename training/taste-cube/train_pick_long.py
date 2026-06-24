@@ -1,21 +1,27 @@
 """
-Train the LONG-survey colour-pick model.
+Train the LONG-survey colour-pick model on REAL long surveys.
 
-Long surveys are rare in the wild, so training rows are SYNTHETIC long
-sessions assembled from quads of real short sessions -- the exact same
-construction (and code) the long gender/age/mood models use
-(training/long-models/train_long.py). Each synthetic long row then yields
-probe rows via the same overwrite scheme as the short pick model.
+Previously this trained on SYNTHETIC "duplicate-short longs" (each short
+replicated 4x into a fake long) because real longs were rare. We now have 1326
+real longs, and a leak-free era-honest experiment showed real beats synthetic on
+the worldwide cohort (pick-acc 0.534 vs 0.507, AUC 0.759 vs 0.742) and that
+adding the synthetic data back in slightly HURTS (legacy population mismatch) --
+so we train on real longs only.
 
-Mirrors train_pick.py: session-level split, leak gate, holdout pick-accuracy,
-pass-2 refit + emit.
+Construction: the long profile must be a full long (all 256 colours), so the
+leak-free target uses the overwrite scheme ON the real long -- pick a round-0
+question whose winner did not advance (absent from r2, safe to remove), clone a
+donor loser over its offered quad / r1 winner / valg digit, compute the long
+prod features on the modified long, and the original quad becomes the "4 new
+colours" with the real pick as the label. ALL eligible round-0 losers per long
+are used (~48/long); unlike the short model the person vector is recomputed per
+probe (the overwrite changes the profile), so density costs compute.
+
+Hold-out is per real long (long_is_holdout) so a person's profile and targets
+never straddle train/val, and the held-out longs ARE the worldwide cohort -- the
+reported pick accuracy is the worldwide long-pick gate.
 
 Run:  python train_pick_long.py [--smoke]
-
-Emits:
-    models-js/pick_long_trees.json
-    pick_long_parity.json (JS mirror check on a long-shaped context)
-    pick_long_summary.json
 """
 
 import json
@@ -27,32 +33,26 @@ from datetime import datetime, timezone
 import numpy as np
 import lightgbm as lgb
 from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import train_test_split
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LONG_MODELS_DIR = os.path.normpath(os.path.join(HERE, "..", "long-models"))
 sys.path.insert(0, HERE)
-sys.path.insert(0, LONG_MODELS_DIR)
-
-import pick_features as pf            # noqa: E402  (shared candidate block)
-import pick_features_long as pfl      # noqa: E402
-import taste_features as tfeat        # noqa: E402
-import train_long as tl               # noqa: E402  (synthetic long assembly)
+import pick_features as pf            # noqa: E402  (shared candidate descriptors)
+import pick_features_long as pfl      # noqa: E402  (long prod person vector)
+import taste_features as tfeat        # noqa: E402  (interactions + colour math)
 from train_taste import _emit_tree_json, _verify_json  # noqa: E402
 
 TRAINING_DIR = os.path.normpath(os.path.join(HERE, ".."))
 sys.path.insert(0, TRAINING_DIR)
-import data_cleaning as dc             # noqa: E402  (frozen hold-out helper)
+import data_cleaning as dc            # noqa: E402
 PROJECT_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
-RAW_SOURCE = os.path.join(TRAINING_DIR, "raw", "save.ligma")
+LONG_REAL = os.path.join(TRAINING_DIR, "raw", "long_real.json")
 JS_OUT_DIR = os.path.normpath(
     os.path.join(PROJECT_ROOT, "..", "english_html", "color-polygraph", "models-js"))
 os.makedirs(JS_OUT_DIR, exist_ok=True)
 
 SEED = 42
-VAL_SIZE = 0.10
+N_R0_LONG = 64
 
-# Same tuned params as the short pick model.
 PARAMS = dict(
     n_estimators=1500, num_leaves=63, learning_rate=0.015,
     feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=5,
@@ -63,6 +63,73 @@ PARAMS = dict(
 LAYOUT = pfl.layout(with_interactions=True)
 PERSON = LAYOUT["person"]
 TOTAL = LAYOUT["total"]
+
+
+def long_eligible(p):
+    """Round-0 questions (of 64) whose winner did not advance to r2."""
+    r1, r2 = p["r1"], [list(c) for c in p["r2"]]
+    out = []
+    for q in range(N_R0_LONG):
+        if tfeat._color_in(r1[q], r2):
+            continue
+        try:
+            pk = int(p["valg"][q])
+        except (ValueError, IndexError):
+            continue
+        if 0 <= pk <= 3:
+            out.append(q)
+    return out
+
+
+def long_modified(p, q, donor):
+    """The real long as if round-0 question q never happened (its offered quad,
+    r1 winner and valg digit overwritten with a donor loser's)."""
+    offered = [list(c) for c in p["offered"]]
+    r1 = [list(c) for c in p["r1"]]
+    valg = list(p["valg"])
+    offered[q * 4:(q + 1) * 4] = [list(c) for c in p["offered"][donor * 4:(donor + 1) * 4]]
+    r1[q] = list(p["r1"][donor])
+    valg[q] = p["valg"][donor]
+    return {"offered": offered, "r1": r1, "r2": [list(c) for c in p["r2"]],
+            "r3": [list(c) for c in p["r3"]], "final": list(p["final"]),
+            "valg": "".join(valg), "tider": p["tider"]}
+
+
+def build_real_long_groups(p, submit_unix):
+    """All eligible-loser probe groups for one real long: list of (rows4, pick)."""
+    probes = long_eligible(p)
+    if len(probes) < 2:
+        return []
+    groups = []
+    for i, q in enumerate(probes):
+        donor = probes[(i + 1) % len(probes)]
+        if donor == q:
+            continue
+        mod = long_modified(p, q, donor)
+        person = pfl.person_vector(mod, submit_unix)
+        ctx = tfeat.session_context(mod["r1"], mod["r2"], mod["final"])
+        pick = int(p["valg"][q])
+        quad = p["offered"][q * 4:(q + 1) * 4]
+        if len(quad) < 4:
+            continue
+        rows4 = np.empty((4, TOTAL), dtype=np.float32)
+        for idx in range(4):
+            rows4[idx] = person + pf.candidate_vector(quad[idx]) + \
+                tfeat.interaction_vector(quad[idx], ctx)
+        groups.append((rows4, pick))
+    return groups
+
+
+def _assemble(group_recs):
+    ng = len(group_recs)
+    X = np.empty((ng * 4, TOTAL), dtype=np.float32)
+    y = np.zeros(ng * 4, dtype=np.int8)
+    gid = np.empty(ng * 4, dtype=np.int32)
+    for gi, (rows4, pick) in enumerate(group_recs):
+        X[gi * 4:gi * 4 + 4] = rows4
+        y[gi * 4 + pick] = 1
+        gid[gi * 4:gi * 4 + 4] = gi
+    return X, y, gid
 
 
 def pick_accuracy(model, X, y, groups, blank_from=None):
@@ -87,75 +154,59 @@ def pick_accuracy(model, X, y, groups, blank_from=None):
 def main():
     smoke = "--smoke" in sys.argv
     t0 = time.time()
-    rng = np.random.RandomState(SEED)
 
-    print("Loading short sessions (served as duplicate-short longs)...")
-    with open(RAW_SOURCE, encoding="utf-8") as fh:
-        raw = json.load(fh)
-    raw = dc.dedupe_short_rows(raw)  # one row per unique survey (same as the short models)
-    valid_raw = [r for r in raw if tl._is_valid(r)]
-    shorts = [tl._parse_short(r) for r in valid_raw]
+    print("Loading real long surveys...")
+    longs = [it for it in json.load(open(LONG_REAL, encoding="utf-8"))
+             if it.get("payload") and it.get("label")]
     if smoke:
-        shorts = shorts[:120]
-        valid_raw = valid_raw[:120]
-    # Duplicate-short: each short is served as one coherent person's long (the
-    # short replicated 4x), same as the long gender/age/mood model. The probe
-    # builder removes the probed question from the short BEFORE duplicating, so
-    # the answer cannot leak through the duplicate blocks.
-    for i, s in enumerate(shorts):
-        s["id"] = i
-    # Frozen content-hashed hold-out on the SOURCE short (same hold-out the
-    # short pick model uses), so the long pick metric is stable across versions
-    # and scored on the same people as the rest of the short leaderboard.
-    sess_holdout = [dc.short_is_holdout(r) for r in valid_raw]
-    sessions = shorts
-    print(f"  {len(shorts)} short sessions -> duplicate-short longs (built per probe)")
+        longs = longs[:80]
+    print(f"  {len(longs)} real longs   layout {LAYOUT}")
 
-    print(f"Building probe rows ({pfl.PROBES_PER_SESSION_LONG} probes/row, "
-          f"long prod features per probe)...   layout {LAYOUT}")
+    print("Building overwrite probe groups (all eligible round-0 losers per long)...")
     t1 = time.time()
-    cap = len(sessions) * pfl.PROBES_PER_SESSION_LONG * 4
-    X = np.zeros((cap, TOTAL), dtype=np.float32)
-    y = np.zeros(cap, dtype=np.int8)
-    sid, gid, hid = [], [], []
-    n = 0
-    for k, s in enumerate(sessions):
-        for row, label, g in pfl.build_probe_rows(s):
-            X[n] = row
-            y[n] = label
-            sid.append(s["id"])
-            gid.append(g)
-            hid.append(sess_holdout[k])
-            n += 1
-        if (k + 1) % 200 == 0:
-            rate = (k + 1) / (time.time() - t1)
-            print(f"  {k+1}/{len(sessions)} rows  ({rate:.0f}/s, "
-                  f"eta {(len(sessions)-k-1)/rate:.0f}s)")
-    X, y = X[:n], y[:n]
-    print(f"  X {X.shape}  positives {int(y.sum())} ({y.mean()*100:.1f}%)  "
-          f"build {time.time()-t1:.0f}s")
+    train_recs, val_recs, n_tr, n_va = [], [], 0, 0
+    for n, it in enumerate(longs):
+        g = build_real_long_groups(it["payload"], int(it["label"].get("time", 0) or 0))
+        if not g:
+            continue
+        if dc.long_is_holdout(it["payload"]):
+            val_recs.extend(g)
+            n_va += 1
+        else:
+            train_recs.extend(g)
+            n_tr += 1
+        if (n + 1) % 200 == 0:
+            rate = (n + 1) / (time.time() - t1)
+            print(f"  {n+1}/{len(longs)} longs  ({rate:.0f}/s, eta {(len(longs)-n-1)/rate:.0f}s)")
+    Xtr, ytr, _ = _assemble(train_recs)
+    Xva, yva, gva = _assemble(val_recs)
+    print(f"  train: {n_tr} longs, {len(train_recs)} groups, {len(ytr)} rows")
+    print(f"  val:   {n_va} longs, {len(val_recs)} groups, {len(yva)} rows  "
+          f"(build {time.time()-t1:.0f}s)")
 
-    # ---- Pass 1: frozen content-hashed session-level split ----
-    tr = np.array([i for i in range(n) if not hid[i]])
-    va = np.array([i for i in range(n) if hid[i]])
-    gva = [gid[i] for i in va]
-    print(f"\nPass 1 - frozen hold-out split  train_rows={len(tr)}  val_rows={len(va)}")
-
-    clf = lgb.LGBMClassifier(**PARAMS).fit(X[tr], y[tr])
-    auc = roc_auc_score(y[va], clf.predict_proba(X[va])[:, 1])
-    acc = pick_accuracy(clf, X[va], y[va], gva)
-    gate = pick_accuracy(clf, X[va], y[va], gva, blank_from=PERSON)
+    # ---- Pass 1: worldwide long-pick gate (held-out real longs) ----
+    print("\nPass 1 - worldwide gate (held-out real longs)")
+    clf = lgb.LGBMClassifier(**PARAMS).fit(Xtr, ytr)
+    auc = roc_auc_score(yva, clf.predict_proba(Xva)[:, 1])
+    acc = pick_accuracy(clf, Xva, yva, gva)
+    gate = pick_accuracy(clf, Xva, yva, gva, blank_from=PERSON)
     print(f"  AUC={auc:.4f}  pick-accuracy={acc:.4f}  leak-gate={gate:.4f} (want ~0.25)")
+    n_rows_total = int(len(ytr) + len(yva))
+    n_tr_groups, n_va_groups = len(train_recs), len(val_recs)
 
-    # ---- Pass 2: refit on all rows + emit ----
+    # ---- Pass 2: refit on ALL groups + emit ----
     emit_stats = {}
+    del Xtr, ytr, Xva, yva, gva, clf
     if not smoke:
-        print("\nPass 2 - refit on all rows + emit ...")
-        prod_clf = lgb.LGBMClassifier(**PARAMS).fit(X, y)
+        print("\nPass 2 - refit on all groups + emit ...")
+        Xall, yall, _ = _assemble(train_recs + val_recs)
+        train_recs, val_recs = [], []
+        prod_clf = lgb.LGBMClassifier(**PARAMS).fit(Xall, yall)
         out = os.path.join(JS_OUT_DIR, "pick_long_trees.json")
         n_trees, n_nodes = _emit_tree_json(prod_clf.booster_, out, "binary")
-        sample = rng.choice(n, min(64, n), replace=False)
-        delta = _verify_json(out, prod_clf.booster_, X[sample])
+        rng = np.random.RandomState(SEED)
+        sample = rng.choice(len(yall), min(64, len(yall)), replace=False)
+        delta = _verify_json(out, prod_clf.booster_, Xall[sample])
         if delta > 1e-5:
             raise SystemExit(f"pick_long_trees.json diverged from LightGBM by {delta:.3e}")
         kb = os.path.getsize(out) / 1024
@@ -163,16 +214,15 @@ def main():
                       "max_emit_delta": float(delta)}
         print(f"  pick_long_trees.json  {kb:.1f} KB  trees={n_trees} nodes={n_nodes}  |delta|<{delta:.1e}")
 
-        # Parity fixture with a LONG-shaped context (r1 64-wide, r2 16-wide):
-        # same JS functions as the short fixture, different input lengths.
+        # Parity fixture (long-shaped context: r1 64-wide, r2 16-wide) from a real long.
         test_colors = [[230, 40, 40], [40, 80, 220], [240, 230, 60],
                        [30, 170, 80], [200, 120, 200], [25, 25, 25]]
         parity = []
-        for s in sessions[:4]:
-            long_pay, _ = tl._dup_short_to_long(s)   # the served long shape
-            ctx = tfeat.session_context(long_pay["r1"], long_pay["r2"], long_pay["final"])
+        for it in longs[:4]:
+            p = it["payload"]
+            ctx = tfeat.session_context(p["r1"], p["r2"], p["final"])
             parity.append({
-                "r1": long_pay["r1"], "r2": long_pay["r2"], "final": long_pay["final"],
+                "r1": p["r1"], "r2": p["r2"], "final": p["final"],
                 "candidates": [{
                     "rgb": c,
                     "cand": pf.candidate_vector(c),
@@ -186,15 +236,17 @@ def main():
     with open(os.path.join(HERE, "pick_long_summary.json"), "w", encoding="utf-8") as fh:
         json.dump({
             "trained_at": datetime.now(timezone.utc).isoformat(),
-            "kind": "LONG-survey colour-pick model (synthetic long rows from short quads)",
+            "kind": "LONG-survey colour-pick model (REAL longs, overwrite probes, no synthetic)",
             "smoke": smoke,
-            "n_long_rows": len(sessions),
-            "probes_per_session": pfl.PROBES_PER_SESSION_LONG,
-            "n_rows": int(n),
+            "n_train_longs": n_tr,
+            "n_val_longs": n_va,
+            "n_train_groups": n_tr_groups,
+            "n_val_groups": n_va_groups,
+            "n_rows": n_rows_total,
             "layout": LAYOUT,
             "params": PARAMS,
-            "validation": {"kind": "frozen content-hashed session-level hold-out",
-                           "val_frac": VAL_SIZE, "chance": 0.25,
+            "validation": {"kind": "per-long hold-out (worldwide cohort); long_is_holdout, "
+                                   "chance=0.25",
                            "auc": float(auc), "pick_accuracy": float(acc),
                            "leak_gate": float(gate)},
             "emit": emit_stats,

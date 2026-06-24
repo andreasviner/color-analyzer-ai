@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-06-24T15:17:25.621889+00:00",
+  "trained_at": "2026-06-24T17:27:58.988462+00:00",
   "kind": "long survey (256 colors) models",
   "data": {
     "source": "duplicate-short synthetic longs (one short replicated 4x) + real long DB rows (heavier weight)",

@@ -1,10 +1,12 @@
 {
-  "trained_at": "2026-06-24T15:55:43.978060+00:00",
-  "kind": "LONG-survey colour-pick model (synthetic long rows from short quads)",
+  "trained_at": "2026-06-24T18:55:47.716131+00:00",
+  "kind": "LONG-survey colour-pick model (REAL longs, overwrite probes, no synthetic)",
   "smoke": false,
-  "n_long_rows": 6096,
-  "probes_per_session": 16,
-  "n_rows": 310356,
+  "n_train_longs": 920,
+  "n_val_longs": 406,
+  "n_train_groups": 44160,
+  "n_val_groups": 19488,
+  "n_rows": 254592,
   "layout": {
     "person": 239,
     "candidate": 33,
@@ -25,15 +27,13 @@
     "verbosity": -1
   },
   "validation": {
-    "kind": "frozen content-hashed session-level hold-out",
-    "val_frac": 0.1,
-    "chance": 0.25,
-    "auc": 0.7313773205213141,
-    "pick_accuracy": 0.5062072460096275,
-    "leak_gate": 0.25779072713453255
+    "kind": "per-long hold-out (worldwide cohort); long_is_holdout, chance=0.25",
+    "auc": 0.7661581073876571,
+    "pick_accuracy": 0.5512623152709359,
+    "leak_gate": 0.26236658456486045
   },
   "emit": {
-    "json_kb": 5305.69,
+    "json_kb": 5303.98,
     "n_trees": 1500,
     "n_nodes": 187500,
     "max_emit_delta": 0.0
