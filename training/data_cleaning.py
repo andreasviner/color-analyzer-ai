@@ -94,8 +94,25 @@ def short_holdout_key(row) -> str:
     return json.dumps([farger[0], str(row[6]), farger[3]], separators=(",", ":"))
 
 
+def is_decomposed_short(row) -> bool:
+    """True if this short row was split out of a real long session
+    (long_payload_to_shorts emits ids "<long_id>#<k>"). Genuine short rows
+    carry a plain db id with no '#'."""
+    return "#" in str(row[0])
+
+
 def short_is_holdout(row, frac: float = HOLDOUT_FRAC) -> bool:
-    """True if this short session is permanently in the eval hold-out."""
+    """True if this short session is permanently in the eval hold-out.
+
+    Decomposed long->short rows are NEVER eligible for the hold-out: a long
+    session's four sub-shorts share the same person and the same labels, so
+    letting any of them into the val fold leaks that person across train/val
+    (the model learns the person from the siblings in train and is then scored
+    on them in val). Keeping them train-only means the val fold stays genuine
+    shorts only and the reported metric is honest, while the extra rows still
+    add training signal."""
+    if is_decomposed_short(row):
+        return False
     return _holdout_unit(short_holdout_key(row)) < frac
 
 

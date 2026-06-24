@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-06-24T10:14:55.295146+00:00",
+  "trained_at": "2026-06-24T12:05:22.701088+00:00",
   "n_total_rows": 6096,
   "validation": {
     "kind": "frozen content-hashed hold-out (sha1 of offered+picks+final)",

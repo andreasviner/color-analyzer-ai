@@ -311,6 +311,20 @@ def bump_version(args, n_rows):
             entry["short_ref_gender_auc"] = round(float(sref.get("gender_auc", 0.0)), 3)
             entry["short_ref_age_mae"] = round(float(sref.get("age_mae", 0.0)), 2)
             entry["short_ref_mood_mae"] = round(float(sref.get("mood_mae", 0.0)), 2)
+    # Colour-pick metrics (short + long), recorded per version so the pick
+    # leaderboard becomes a version history like gender/age/mood. Stored only
+    # when the trainer actually produced a score, so a --skip-train run or a
+    # missing summary leaves the version absent from the pick view rather than
+    # writing zeros.
+    pick, pick_long = _pick_metrics()
+    if pick.get("auc") is not None:
+        entry["pick_acc"] = round(float(pick.get("pick_acc") or 0.0), 3)
+        entry["pick_auc"] = round(float(pick["auc"]), 3)
+        entry["pick_leak_gate"] = round(float(pick.get("leak_gate") or 0.0), 3)
+    if pick_long.get("auc") is not None:
+        entry["pick_long_acc"] = round(float(pick_long.get("pick_acc") or 0.0), 3)
+        entry["pick_long_auc"] = round(float(pick_long["auc"]), 3)
+        entry["pick_long_leak_gate"] = round(float(pick_long.get("leak_gate") or 0.0), 3)
     # Replace any existing entry with this version, then prepend.
     entries = [e for e in vinfo.get("entries", []) if e.get("version") != new_str]
     entries.insert(0, entry)
@@ -397,24 +411,57 @@ def _versions_long_rows(entries, lang):
     return "\n".join(out)
 
 
-def _pick_rows(pick, pick_long, lang):
-    if lang == "en":
-        names = ["Colour pick (short survey)", "Colour pick (long survey)"]
-    else:
-        names = ["Fargevalg (kort test)", "Fargevalg (lang test)"]
+def _pick_rows(entries, lang):
+    """Per-version colour-pick history (short + long), newest first. Mirrors the
+    gender/age/mood version table: one short row and one long row per version
+    that recorded pick metrics. Best pick-accuracy and best AUC across the table
+    are highlighted; leak gate is left unhighlighted (it should sit near 0.25,
+    so "higher/lower" is not "better")."""
+    short_name = "Colour pick short" if lang == "en" else "Fargevalg kort"
+    long_name = "Colour pick long" if lang == "en" else "Fargevalg lang"
 
-    def row(name, acc, auc, gate):
-        def c(v):
-            return f'              <td class="lb-score">{_fmt(v, 3)}</td>' if v is not None \
-                else '              <td class="lb-score">&mdash;</td>'
-        return ("            <tr>\n"
-                f'              <td><span class="lb-arch lb-arch-plain">{name}</span></td>\n'
-                f'{c(acc)}\n{c(auc)}\n{c(gate)}\n'
-                "            </tr>")
-    return "\n".join([
-        row(names[0], pick.get("pick_acc"), pick.get("auc"), pick.get("leak_gate")),
-        row(names[1], pick_long.get("pick_acc"), pick_long.get("auc"), pick_long.get("leak_gate")),
-    ])
+    rows_data = []  # (label, acc, auc, gate)
+    for e in entries:
+        v = e["version"]
+        if e.get("pick_auc") is not None:
+            rows_data.append((f"{short_name} v{v}",
+                              e.get("pick_acc"), e.get("pick_auc"), e.get("pick_leak_gate")))
+        if e.get("pick_long_auc") is not None:
+            rows_data.append((f"{long_name} v{v}",
+                              e.get("pick_long_acc"), e.get("pick_long_auc"), e.get("pick_long_leak_gate")))
+
+    if not rows_data:
+        span = "Colour-pick models retrain on the next refresh." if lang == "en" \
+            else "Fargevalgmodeller trenes på neste oppdatering."
+        return ('            <tr>\n'
+                f'              <td><span class="lb-arch lb-arch-plain">{span}</span></td>\n'
+                '              <td class="lb-score">&mdash;</td>\n'
+                '              <td class="lb-score">&mdash;</td>\n'
+                '              <td class="lb-score">&mdash;</td>\n'
+                '            </tr>')
+
+    accs = [a for _, a, _, _ in rows_data if a is not None]
+    aucs = [u for _, _, u, _ in rows_data if u is not None]
+    best_acc = max(accs) if accs else None
+    best_auc = max(aucs) if aucs else None
+
+    def cell(v, is_best):
+        if v is None:
+            return '              <td class="lb-score">&mdash;</td>'
+        cls = "lb-score lb-score-best" if is_best else "lb-score"
+        return f'              <td class="{cls}">{_fmt(v, 3)}</td>'
+
+    out = []
+    for label, acc, auc, gate in rows_data:
+        out.append(
+            "            <tr>\n"
+            f'              <td><span class="lb-arch lb-arch-plain">{label}</span></td>\n'
+            f'{cell(acc, acc is not None and acc == best_acc)}\n'
+            f'{cell(auc, auc is not None and auc == best_auc)}\n'
+            f'{cell(gate, False)}\n'
+            "            </tr>"
+        )
+    return "\n".join(out)
 
 
 def _replace_region(html, name, inner):
@@ -447,7 +494,7 @@ def publish(vinfo):
             html = fh.read()
         html = _replace_region(html, "VERSIONS", _versions_rows(vinfo["entries"], lang))
         html = _replace_region(html, "VERSIONS_LONG", _versions_long_rows(vinfo["entries"], lang))
-        html = _replace_region(html, "PICK", _pick_rows(pick, pick_long, lang))
+        html = _replace_region(html, "PICK", _pick_rows(vinfo["entries"], lang))
         html = re.sub(rf"({label}: )\d{{4}}-\d{{2}}-\d{{2}}", rf"\g<1>{today}", html)
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(html)
@@ -466,10 +513,15 @@ def main():
     ap.add_argument("--real-long-weight", default="3.0",
                     help="sample weight for real long rows (default 3.0)")
     ap.add_argument("--decompose-long", dest="decompose_long", action="store_true",
-                    help="ALSO split real long sessions into short rows and feed them to "
-                         "the short models. Default OFF: it measurably lowered short "
-                         "metrics (population mismatch) and the short model already "
-                         "covers shorts well.")
+                    help="ALSO split real long sessions into short rows (4 per long) "
+                         "and feed them to the short models as extra TRAINING data. "
+                         "Decomposed rows are now held train-only (short_is_holdout "
+                         "rejects them), so the val fold stays genuine shorts and the "
+                         "reported metric is leak-free -- this is the honest test of "
+                         "whether the extra rows help. Default OFF: earlier runs saw a "
+                         "population mismatch (long respondents differ from genuine "
+                         "short respondents); re-enable to re-measure now that the "
+                         "train/val leak is fixed.")
     ap.add_argument("--skip-train", action="store_true",
                     help="rebuild data + republish only (no model training)")
     args = ap.parse_args()

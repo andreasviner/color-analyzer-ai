@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-06-24T10:26:18.039669+00:00",
+  "trained_at": "2026-06-24T12:17:13.637038+00:00",
   "kind": "colour-pick model (prod person features + client-side candidate features)",
   "smoke": false,
   "n_sessions": 6096,
