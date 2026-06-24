@@ -47,7 +47,7 @@ from sklearn.metrics import (
     accuracy_score, f1_score, mean_absolute_error,
     r2_score, roc_auc_score,
 )
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TRAINING_DIR = os.path.normpath(os.path.join(HERE, ".."))
@@ -104,6 +104,14 @@ CHAMPION_REG = dict(
 def _is_valid(row):
     # Shared filter — identical selection to features.py / features.npy.
     return is_valid_clean(row)
+
+
+def _is_worldwide(row):
+    # A genuine NEW (worldwide) session: DB rows carry a UUID id; legacy 2020
+    # Oslo rows carry a plain numeric id; decomposed long->short rows carry the
+    # long's id with a "#k" suffix (training augmentation, not real test data).
+    rid = str(row[0])
+    return "#" not in rid and "-" in rid and len(rid) >= 32
 
 
 def _bucket_id(r, g, b):
@@ -379,6 +387,43 @@ def main():
     r2_m  = r2_score(m[val_idx], p_m)
     print(f"  MOOD    MAE={mae_m:.3f}  R2={r2_m:+.3f}  ({time.time()-t0:.1f}s)")
 
+    # ---------- Worldwide gate: 5-fold CV over the new worldwide rows ----------
+    # The frozen hold-out above is ~92% the legacy 2020 Oslo cohort, so its
+    # numbers track a population we no longer optimise for. The model is meant for
+    # current worldwide users, of which we still have few, so a fixed hold-out
+    # would waste scarce signal. Instead score EVERY genuine worldwide session
+    # out-of-fold: 5 folds, each trained on (all legacy + decomposed + the other
+    # worldwide rows) with the bucket grids rebuilt per fold (no leakage), then
+    # evaluated on its held worldwide rows. Decomposed long->short rows (id "...#k")
+    # are training augmentation, never part of the worldwide eval set.
+    world_mask = np.array([_is_worldwide(r) for r in valid_rows])
+    world_idx_all = all_idx[world_mask]
+    world_scores = {}
+    print(f"\nWorldwide gate (5-fold CV over {len(world_idx_all)} genuine worldwide rows)")
+    if len(world_idx_all) >= 50:
+        oof_g = np.full(N, np.nan); oof_a = np.full(N, np.nan); oof_m = np.full(N, np.nan)
+        kf = KFold(n_splits=5, shuffle=True, random_state=SEED)
+        for tr_w, va_w in kf.split(world_idx_all):
+            wv = world_idx_all[va_w]
+            wv_set = set(int(i) for i in wv)
+            wt = np.array([i for i in range(N) if i not in wv_set])
+            gz, mz, ag, mo = _build_grids_from(wt)
+            Xg_t, Xa_t, Xm_t = _stack_features(wt, gz, mz, ag, mo)
+            Xg_v, Xa_v, Xm_v = _stack_features(wv, gz, mz, ag, mo)
+            oof_g[wv] = lgb.LGBMClassifier(**CHAMPION_CLF).fit(Xg_t, g[wt]).predict_proba(Xg_v)[:, 1]
+            oof_a[wv] = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xa_t, a[wt]).predict(Xa_v)
+            oof_m[wv] = lgb.LGBMRegressor(**CHAMPION_REG).fit(Xm_t, m[wt]).predict(Xm_v)
+        world_scores = {
+            "n": int(len(world_idx_all)),
+            "gender_auc": float(roc_auc_score(g[world_idx_all], oof_g[world_idx_all])),
+            "age_mae":    float(mean_absolute_error(a[world_idx_all], oof_a[world_idx_all])),
+            "mood_mae":   float(mean_absolute_error(m[world_idx_all], oof_m[world_idx_all])),
+        }
+        print(f"  GENDER AUC={world_scores['gender_auc']:.4f}   "
+              f"AGE MAE={world_scores['age_mae']:.3f}   MOOD MAE={world_scores['mood_mae']:.3f}")
+    else:
+        print(f"  only {len(world_idx_all)} worldwide rows (<50) -> gate skipped this run")
+
     # ---------- Pass 2: refit on full data + emit ----------
     print("\nPass 2 - refitting on FULL 6,710 rows for deployment ...")
     all_indices = np.arange(N)
@@ -472,6 +517,10 @@ def main():
             "mood_mae":        float(mae_m),
             "mood_r2":         float(r2_m),
         },
+        # Worldwide-cohort gate (5-fold CV over genuine new sessions). Empty dict
+        # until there are >=50 worldwide rows. This is the number to steer by; the
+        # validation_scores above stay for legacy continuity / version comparison.
+        "worldwide_scores": world_scores,
         "emit_stats": emit_stats,
         "seed": SEED,
     }

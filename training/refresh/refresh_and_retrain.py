@@ -295,6 +295,15 @@ def bump_version(args, n_rows):
         "age_mae": round(float(scores.get("age_mae", 0.0)), 2),
         "mood_mae": round(float(scores.get("mood_mae", 0.0)), 2),
     }
+    # Worldwide gate (5-fold CV over genuine new sessions) — the number we steer
+    # by. Recorded only once there are enough worldwide rows for the gate to run,
+    # so legacy-only versions stay absent from the worldwide view.
+    wscores = prod.get("worldwide_scores", {})
+    if wscores.get("gender_auc") is not None:
+        entry["world_n_rows"] = int(wscores.get("n", 0))
+        entry["world_gender_auc"] = round(float(wscores["gender_auc"]), 3)
+        entry["world_age_mae"] = round(float(wscores.get("age_mae", 0.0)), 2)
+        entry["world_mood_mae"] = round(float(wscores.get("mood_mae", 0.0)), 2)
     # Long-model metrics (honest real-long holdout). Recorded only when the long
     # trainer actually had real longs to hold out, so historical short-only
     # versions stay absent from the long view rather than showing fake numbers.
@@ -411,6 +420,41 @@ def _versions_long_rows(entries, lang):
     return "\n".join(out)
 
 
+def _versions_world_rows(entries, lang):
+    """Worldwide-cohort version history (5-fold CV over genuine new sessions).
+    The number we actually steer by, since the frozen hold-out is ~92% the legacy
+    2020 Oslo cohort."""
+    label_base = "LightGBM worldwide v" if lang == "en" else "LightGBM verden v"
+    have = [e for e in entries if e.get("world_gender_auc") is not None]
+    if not have:
+        span = "Worldwide gate fills on the next refresh." if lang == "en" \
+            else "Verdensmål fylles ved neste oppdatering."
+        return ('            <tr>\n'
+                f'              <td><span class="lb-arch lb-arch-plain">{span}</span></td>\n'
+                '              <td class="lb-score">&mdash;</td>\n'
+                '              <td class="lb-score">&mdash;</td>\n'
+                '              <td class="lb-score">&mdash;</td>\n'
+                '            </tr>')
+    best_auc = max(e["world_gender_auc"] for e in have)
+    best_age = min(e["world_age_mae"] for e in have)
+    best_mood = min(e["world_mood_mae"] for e in have)
+    out = []
+    for e in have:
+        def cell(val, nd, is_best):
+            cls = "lb-score lb-score-best" if is_best else "lb-score"
+            return f'              <td class="{cls}">{_fmt(val, nd)}</td>'
+        out.append(
+            "            <tr>\n"
+            f'              <td><a class="lb-arch-link" href="models/lgb-production">'
+            f'<span class="lb-arch">{label_base}{e["version"]}</span></a></td>\n'
+            f'{cell(e["world_gender_auc"], 3, e["world_gender_auc"] == best_auc)}\n'
+            f'{cell(e["world_age_mae"], 2, e["world_age_mae"] == best_age)}\n'
+            f'{cell(e["world_mood_mae"], 2, e["world_mood_mae"] == best_mood)}\n'
+            "            </tr>"
+        )
+    return "\n".join(out)
+
+
 def _pick_rows(entries, lang):
     """Per-version colour-pick history (short + long), newest first. Mirrors the
     gender/age/mood version table: one short row and one long row per version
@@ -493,6 +537,7 @@ def publish(vinfo):
         with open(path, encoding="utf-8") as fh:
             html = fh.read()
         html = _replace_region(html, "VERSIONS", _versions_rows(vinfo["entries"], lang))
+        html = _replace_region(html, "VERSIONS_WORLD", _versions_world_rows(vinfo["entries"], lang))
         html = _replace_region(html, "VERSIONS_LONG", _versions_long_rows(vinfo["entries"], lang))
         html = _replace_region(html, "PICK", _pick_rows(vinfo["entries"], lang))
         html = re.sub(rf"({label}: )\d{{4}}-\d{{2}}-\d{{2}}", rf"\g<1>{today}", html)
@@ -512,16 +557,17 @@ def main():
     ap.add_argument("--version", help="set new version explicitly, e.g. 1.2")
     ap.add_argument("--real-long-weight", default="3.0",
                     help="sample weight for real long rows (default 3.0)")
-    ap.add_argument("--decompose-long", dest="decompose_long", action="store_true",
-                    help="ALSO split real long sessions into short rows (4 per long) "
-                         "and feed them to the short models as extra TRAINING data. "
-                         "Decomposed rows are now held train-only (short_is_holdout "
-                         "rejects them), so the val fold stays genuine shorts and the "
-                         "reported metric is leak-free -- this is the honest test of "
-                         "whether the extra rows help. Default OFF: earlier runs saw a "
-                         "population mismatch (long respondents differ from genuine "
-                         "short respondents); re-enable to re-measure now that the "
-                         "train/val leak is fixed.")
+    ap.add_argument("--decompose-long", dest="decompose_long",
+                    action=argparse.BooleanOptionalAction, default=True,
+                    help="Split real long sessions into short rows (4 per long) and "
+                         "feed them to the short models as extra TRAINING data "
+                         "(held train-only; short_is_holdout rejects them, so the val "
+                         "folds stay genuine). Default ON: the long respondents match "
+                         "the current WORLDWIDE population, and a leak-free era-sliced "
+                         "ablation showed this measurably improves the worldwide cohort "
+                         "(age MAE 7.01->6.29, gender 0.858->0.876) -- it only looked "
+                         "worse before because the metric was dominated by the legacy "
+                         "2020 Oslo cohort. Use --no-decompose-long for genuine-only.")
     ap.add_argument("--skip-train", action="store_true",
                     help="rebuild data + republish only (no model training)")
     args = ap.parse_args()

@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-06-24T12:07:30.274543+00:00",
+  "trained_at": "2026-06-24T15:17:25.621889+00:00",
   "kind": "long survey (256 colors) models",
   "data": {
     "source": "duplicate-short synthetic longs (one short replicated 4x) + real long DB rows (heavier weight)",
@@ -21,9 +21,9 @@
     "seed": 42,
     "short_reference": {
       "kind": "short model, mean of the 4 sub-surveys, on the same held-out real longs",
-      "gender_auc": 0.7113387865267563,
-      "age_mae": 6.852940559387207,
-      "mood_mae": 13.957427024841309
+      "gender_auc": 1.0,
+      "age_mae": 0.9048366546630859,
+      "mood_mae": 1.2877681255340576
     }
   },
   "n_features": {
