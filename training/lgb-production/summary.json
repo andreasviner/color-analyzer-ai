@@ -1,14 +1,14 @@
 {
-  "trained_at": "2026-06-19T10:55:57.798400+00:00",
-  "n_total_rows": 6049,
+  "trained_at": "2026-06-24T10:14:55.295146+00:00",
+  "n_total_rows": 6096,
   "validation": {
     "kind": "frozen content-hashed hold-out (sha1 of offered+picks+final)",
-    "n_train": 5434,
-    "n_val": 615,
-    "holdout_frac": 0.10166969747065631
+    "n_train": 5477,
+    "n_val": 619,
+    "holdout_frac": 0.10154199475065617
   },
   "deployment": {
-    "fit_on_rows": 6049,
+    "fit_on_rows": 6096,
     "notes": "Final boosters re-fit on the full dataset after metrics were captured on the eval split; bucket grids are built from all rows."
   },
   "champion_clf_params": {
@@ -43,38 +43,38 @@
     "mood": 475
   },
   "target_stats": {
-    "gender_girl_frac": 0.5779467680608364,
+    "gender_girl_frac": 0.5761154855643045,
     "age_min": 6,
     "age_max": 68,
-    "age_mean": 21.964126301868077,
+    "age_mean": 22.03297244094488,
     "mood_min": 0,
     "mood_max": 60,
-    "mood_mean": 19.11787072243346
+    "mood_mean": 19.249015748031496
   },
   "validation_scores": {
-    "gender_auc": 0.8074970966493182,
-    "gender_accuracy": 0.7447154471544716,
-    "gender_f1": 0.783448275862069,
-    "age_mae": 8.695084189143602,
-    "age_r2": 0.17392930191077471,
-    "mood_mae": 10.995567347670823,
-    "mood_r2": -0.003300205562018821
+    "gender_auc": 0.8059734700796746,
+    "gender_accuracy": 0.7479806138933764,
+    "gender_f1": 0.7827298050139275,
+    "age_mae": 8.740140935672608,
+    "age_r2": 0.1692355376931014,
+    "mood_mae": 10.921737965510873,
+    "mood_r2": 0.02354168946129842
   },
   "emit_stats": {
     "gender": {
-      "json_kb": 2827.75,
+      "json_kb": 2827.22,
       "n_trees": 800,
       "n_nodes": 100000,
       "max_emit_delta": 0.0
     },
     "age": {
-      "json_kb": 3511.13,
+      "json_kb": 3510.84,
       "n_trees": 1000,
       "n_nodes": 125000,
       "max_emit_delta": 0.0
     },
     "mood": {
-      "json_kb": 3505.09,
+      "json_kb": 3504.91,
       "n_trees": 1000,
       "n_nodes": 125000,
       "max_emit_delta": 0.0

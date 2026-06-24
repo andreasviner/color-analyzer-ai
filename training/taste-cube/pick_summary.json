@@ -1,10 +1,10 @@
 {
-  "trained_at": "2026-06-19T11:02:57.516349+00:00",
+  "trained_at": "2026-06-24T10:26:18.039669+00:00",
   "kind": "colour-pick model (prod person features + client-side candidate features)",
   "smoke": false,
-  "n_sessions": 6049,
+  "n_sessions": 6096,
   "probes_per_session": 8,
-  "n_rows": 193568,
+  "n_rows": 195072,
   "layout": {
     "person": 479,
     "candidate": 33,
@@ -31,18 +31,18 @@
   },
   "results": {
     "A_person_cand": {
-      "auc": 0.7214840703285081,
-      "pick_acc": 0.4928861788617886,
-      "leak_gate": 0.26178861788617885
+      "auc": 0.7230102576549631,
+      "pick_acc": 0.49959612277867527,
+      "leak_gate": 0.2611066235864297
     },
     "B_person_cand_inter": {
-      "auc": 0.7249031661048319,
-      "pick_acc": 0.5028455284552845,
-      "leak_gate": 0.26178861788617885
+      "auc": 0.726921594860472,
+      "pick_acc": 0.5032310177705978,
+      "leak_gate": 0.2611066235864297
     }
   },
   "emit": {
-    "json_kb": 5316.67,
+    "json_kb": 5316.73,
     "n_trees": 1500,
     "n_nodes": 187500,
     "max_emit_delta": 0.0
