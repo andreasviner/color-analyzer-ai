@@ -27,13 +27,16 @@ the survey.html `API_BASE` points at):
         Body: {pred_value, confirmed_value}
         Final step. Marks the row as completed.
 
-    GET /color-polygraph/export?limit=&offset=&completed_only=
+    GET /color-polygraph/export?limit=&offset=&completed_only=&include_geo=
         Authenticated bulk export of stored survey rows, used by the
         retraining pipeline (training/refresh/pull_remote.py) to pull the
         live database down for cleaning + retraining. Requires the header
         `x-export-token` to match the EXPORT_TOKEN secret. Returns the raw
         JSON columns (offered/r1/r2/r3/final/valg/tider + confirmed targets)
         in stable id order, paged so a large table can be walked in chunks.
+        include_geo=1 additionally returns coarse CF geo (country/region/city/
+        timezone_cf) for the color-map viz; it is off by default so the
+        retraining pull stays geo-free. ip_hash is never exported.
 
     OPTIONS *
         CORS preflight. Allows requests from the static-site origin.
@@ -461,7 +464,9 @@ async def _handle_get_survey(request, env, survey_id):
 
 # Columns the retraining pipeline needs. The raw JSON blobs reconstruct the
 # survey payload; the confirmed_* columns are the training targets. Metadata
-# columns (ip_hash, user_agent, geo) are deliberately NOT exported.
+# columns (ip_hash, user_agent) are never exported; the coarse CF geo columns
+# are opt-in via ?include_geo=1 (still token-gated) and stay OFF by default, so
+# the retraining pull remains geo-free.
 _EXPORT_COLUMNS = (
     "id, server_received_at, client_started_at, client_submitted_at, "
     "client_local_time, offered_json, r1_json, r2_json, r3_json, "
@@ -469,6 +474,10 @@ _EXPORT_COLUMNS = (
     "confirmed_gender, confirmed_age, confirmed_mood, "
     "pred_gender_prob, pred_age, pred_mood"
 )
+
+# Coarse Cloudflare-derived location, added only when ?include_geo=1. ip_hash is
+# never included here. Used by the color-map viz to place mean colors on a map.
+_EXPORT_GEO_COLUMNS = ("country", "region", "city", "timezone_cf")
 
 _EXPORT_DEFAULT_LIMIT = 1000
 _EXPORT_MAX_LIMIT = 5000
@@ -520,6 +529,12 @@ async def _handle_export(request, env):
         if completed_only else ""
     )
 
+    # Opt-in coarse geo (still token-gated). Off by default so the retraining
+    # pull stays geo-free; the color-map viz passes include_geo=1 explicitly.
+    include_geo = str(_query_param(url, "include_geo", "0")).lower() in ("1", "true", "yes")
+    select_columns = _EXPORT_COLUMNS + (
+        ", " + ", ".join(_EXPORT_GEO_COLUMNS) if include_geo else "")
+
     try:
         total_row = await env.DB.prepare(
             f"SELECT COUNT(*) AS n FROM surveys {where}"
@@ -532,7 +547,7 @@ async def _handle_export(request, env):
 
         # Stable ordering by insertion time then id so paging is deterministic.
         result = await env.DB.prepare(
-            f"SELECT {_EXPORT_COLUMNS} FROM surveys {where} "
+            f"SELECT {select_columns} FROM surveys {where} "
             "ORDER BY server_received_at ASC, id ASC LIMIT ? OFFSET ?"
         ).bind(limit, offset).all()
     except Exception as exc:
@@ -555,13 +570,16 @@ async def _handle_export(request, env):
         if isinstance(r, dict):
             rows.append(dict(r))
         else:
-            rows.append({k: getattr(r, k, None) for k in (
+            keys = [
                 "id", "server_received_at", "client_started_at",
                 "client_submitted_at", "client_local_time", "offered_json",
                 "r1_json", "r2_json", "r3_json", "final_color_json", "valg",
                 "tider_json", "long_survey", "confirmed_gender",
                 "confirmed_age", "confirmed_mood", "pred_gender_prob",
-                "pred_age", "pred_mood")})
+                "pred_age", "pred_mood"]
+            if include_geo:
+                keys += list(_EXPORT_GEO_COLUMNS)
+            rows.append({k: getattr(r, k, None) for k in keys})
 
     return _json_response({
         "rows": rows,
@@ -570,6 +588,7 @@ async def _handle_export(request, env):
         "offset": offset,
         "total": total,
         "completed_only": completed_only,
+        "include_geo": include_geo,
         "has_more": offset + len(rows) < total,
     }, request, env)
 
