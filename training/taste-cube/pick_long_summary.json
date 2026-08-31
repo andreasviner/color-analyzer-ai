@@ -1,12 +1,12 @@
 {
-  "trained_at": "2026-07-06T11:21:31.876842+00:00",
+  "trained_at": "2026-08-31T12:21:18.964746+00:00",
   "kind": "LONG-survey colour-pick model (REAL longs, overwrite probes, no synthetic)",
   "smoke": false,
-  "n_train_longs": 968,
-  "n_val_longs": 419,
-  "n_train_groups": 46464,
-  "n_val_groups": 20112,
-  "n_rows": 266304,
+  "n_train_longs": 1008,
+  "n_val_longs": 436,
+  "n_train_groups": 48384,
+  "n_val_groups": 20928,
+  "n_rows": 277248,
   "layout": {
     "person": 239,
     "candidate": 33,
@@ -28,12 +28,12 @@
   },
   "validation": {
     "kind": "per-long hold-out (worldwide cohort); long_is_holdout, chance=0.25",
-    "auc": 0.7670163490908088,
-    "pick_accuracy": 0.5535998408910103,
-    "leak_gate": 0.26252983293556087
+    "auc": 0.7657996589491236,
+    "pick_accuracy": 0.5504109327217125,
+    "leak_gate": 0.2631402905198777
   },
   "emit": {
-    "json_kb": 5304.39,
+    "json_kb": 5304.61,
     "n_trees": 1500,
     "n_nodes": 187500,
     "max_emit_delta": 0.0

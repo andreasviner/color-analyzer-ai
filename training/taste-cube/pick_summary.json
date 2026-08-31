@@ -1,12 +1,12 @@
 {
-  "trained_at": "2026-07-06T11:14:36.833316+00:00",
+  "trained_at": "2026-08-31T12:04:26.644968+00:00",
   "kind": "colour-pick model (real-long-derived: untouched profile sub-survey + cross-sub-survey round-0 targets, no overwrite)",
   "smoke": false,
-  "n_train_longs": 968,
-  "n_val_longs": 419,
-  "n_train_groups": 185536,
-  "n_val_groups": 80448,
-  "n_rows": 1063936,
+  "n_train_longs": 1008,
+  "n_val_longs": 436,
+  "n_train_groups": 193216,
+  "n_val_groups": 83712,
+  "n_rows": 1107712,
   "layout": {
     "person": 479,
     "candidate": 33,
@@ -31,13 +31,13 @@
   },
   "results": {
     "B_person_cand_inter": {
-      "auc": 0.764501735887786,
-      "pick_acc": 0.5629226332537789,
-      "leak_gate": 0.263089200477327
+      "auc": 0.7634194078662369,
+      "pick_acc": 0.5599077790519877,
+      "leak_gate": 0.26333142201834864
     }
   },
   "emit": {
-    "json_kb": 5326.59,
+    "json_kb": 5326.3,
     "n_trees": 1500,
     "n_nodes": 187500,
     "max_emit_delta": 0.0

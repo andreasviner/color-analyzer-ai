@@ -1,14 +1,14 @@
 {
-  "trained_at": "2026-07-06T10:57:43.178950+00:00",
-  "n_total_rows": 11650,
+  "trained_at": "2026-08-31T11:34:56.631366+00:00",
+  "n_total_rows": 11894,
   "validation": {
     "kind": "frozen content-hashed hold-out (sha1 of offered+picks+final)",
-    "n_train": 11028,
-    "n_val": 622,
-    "holdout_frac": 0.053390557939914166
+    "n_train": 11270,
+    "n_val": 624,
+    "holdout_frac": 0.05246342693795191
   },
   "deployment": {
-    "fit_on_rows": 11650,
+    "fit_on_rows": 11894,
     "notes": "Final boosters re-fit on the full dataset after metrics were captured on the eval split; bucket grids are built from all rows."
   },
   "champion_clf_params": {
@@ -43,44 +43,44 @@
     "mood": 475
   },
   "target_stats": {
-    "gender_girl_frac": 0.4685836909871245,
+    "gender_girl_frac": 0.46838742222969565,
     "age_min": 6,
     "age_max": 80,
-    "age_mean": 26.437596566523606,
+    "age_mean": 26.484698167143097,
     "mood_min": 0,
     "mood_max": 60,
-    "mood_mean": 27.452961373390558
+    "mood_mean": 27.68858247856062
   },
   "validation_scores": {
-    "gender_auc": 0.8021008403361346,
-    "gender_accuracy": 0.7427652733118971,
-    "gender_f1": 0.7777777777777778,
-    "age_mae": 8.805290235512741,
-    "age_r2": 0.17730202170990728,
-    "mood_mae": 10.875300099846324,
-    "mood_r2": 0.03193746578632539
+    "gender_auc": 0.800281543274244,
+    "gender_accuracy": 0.7243589743589743,
+    "gender_f1": 0.7630853994490359,
+    "age_mae": 8.761140054654103,
+    "age_r2": 0.17791501650900632,
+    "mood_mae": 10.831311085465728,
+    "mood_r2": 0.04560957846463798
   },
   "worldwide_scores": {
-    "n": 437,
-    "gender_auc": 0.7716114977950161,
-    "age_mae": 6.42118858602083,
-    "mood_mae": 9.53605985371827
+    "n": 453,
+    "gender_auc": 0.7596718605892918,
+    "age_mae": 6.593824146256001,
+    "mood_mae": 9.503588780186787
   },
   "emit_stats": {
     "gender": {
-      "json_kb": 2821.31,
+      "json_kb": 2821.26,
       "n_trees": 800,
       "n_nodes": 100000,
       "max_emit_delta": 0.0
     },
     "age": {
-      "json_kb": 3494.1,
+      "json_kb": 3493.48,
       "n_trees": 1000,
       "n_nodes": 125000,
       "max_emit_delta": 0.0
     },
     "mood": {
-      "json_kb": 3486.58,
+      "json_kb": 3486.51,
       "n_trees": 1000,
       "n_nodes": 125000,
       "max_emit_delta": 0.0

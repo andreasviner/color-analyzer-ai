@@ -62,7 +62,18 @@ _load_dotenv(os.path.join(_CP_ROOT, ".env"))
 
 DEFAULT_BASE = os.environ.get("CP_API_BASE", "https://api.andreaslindeman.com")
 PAGE_LIMIT = 1000          # matches the worker default; capped at 5000 there
+MIN_PAGE_LIMIT = 50        # smallest page we bother trying before giving up
+PAGE_ATTEMPTS = 8          # tries per page before shrinking it (cold-start 1101s)
+RETRY_SLEEP = 1.5          # seconds between attempts
 REQUEST_TIMEOUT = 60       # seconds per page request
+
+
+class ExportError(Exception):
+    """A page request failed. `code` is the HTTP status (0 if unreachable)."""
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
 
 
 def _fetch_page(base, token, limit, offset, completed_only):
@@ -91,24 +102,60 @@ def _fetch_page(base, token, limit, offset, completed_only):
             body = exc.read().decode("utf-8")
         except Exception:
             pass
-        raise SystemExit(
+        raise ExportError(
+            exc.code,
             f"export request failed: HTTP {exc.code} {exc.reason}\n  url: {url}\n  body: {body}"
         )
     except urllib.error.URLError as exc:
-        raise SystemExit(f"could not reach {url}: {exc.reason}")
+        raise ExportError(0, f"could not reach {url}: {exc.reason}")
 
 
-def pull_all(base, token, completed_only=True, out_path=DEFAULT_OUT):
+def pull_all(base, token, completed_only=True, out_path=DEFAULT_OUT,
+             page_limit=PAGE_LIMIT):
+    """Walk the export endpoint in pages.
+
+    The worker's per-request CPU budget scales with the SIZE of the payloads on
+    the page, not just the row count: long-survey rows (256 colours) are far
+    heavier than short ones, so a page size that works at the start of the table
+    can trip error 1102 ("Worker exceeded resource limits") further in. On a 5xx
+    we halve the page size and retry the same offset rather than losing the rows
+    already pulled.
+    """
     rows = []
     offset = 0
     total = None
+    limit = page_limit
     t0 = time.time()
     while True:
-        page = _fetch_page(base, token, PAGE_LIMIT, offset, completed_only)
+        page = None
+        # The Python worker throws error 1101 on a good fraction of requests
+        # (cold starts), independent of the page contents: the same offset that
+        # fails will succeed a moment later. So retry the page as-is first, and
+        # only shrink it if every attempt failed (that is the CPU-limit case,
+        # error 1102, which retries alone cannot fix).
+        for attempt in range(1, PAGE_ATTEMPTS + 1):
+            try:
+                page = _fetch_page(base, token, limit, offset, completed_only)
+                break
+            except ExportError as exc:
+                if not (exc.code == 0 or exc.code >= 500):
+                    raise SystemExit(str(exc))
+                last_error = exc
+                if attempt < PAGE_ATTEMPTS:
+                    print(f"  page offset={offset} limit={limit} attempt "
+                          f"{attempt} failed (HTTP {exc.code}); retrying")
+                    time.sleep(RETRY_SLEEP)
+        if page is None:
+            if limit > MIN_PAGE_LIMIT:
+                limit = max(MIN_PAGE_LIMIT, limit // 2)
+                print(f"  page offset={offset} failed {PAGE_ATTEMPTS}x; "
+                      f"shrinking to limit={limit}")
+                continue
+            raise SystemExit(str(last_error))
         batch = page.get("rows", [])
         rows.extend(batch)
         total = page.get("total", total)
-        print(f"  page offset={offset}  got {len(batch)}  "
+        print(f"  page offset={offset} limit={limit}  got {len(batch)}  "
               f"(running {len(rows)}/{total})")
         if not page.get("has_more") or not batch:
             break
@@ -139,6 +186,9 @@ def main():
                     help="include rows that have not completed all three "
                          "confirmations (default: completed only)")
     ap.add_argument("--out", default=DEFAULT_OUT, help="output dump path")
+    ap.add_argument("--limit", type=int, default=PAGE_LIMIT,
+                    help="rows per page; halved automatically if the worker "
+                         f"trips its CPU limit. default: {PAGE_LIMIT}")
     args = ap.parse_args()
 
     if not args.token:
@@ -146,7 +196,8 @@ def main():
                  "(the EXPORT_TOKEN secret you set with `wrangler secret put`)")
 
     print(f"Pulling from {args.base}  (completed_only={not args.all}) ...")
-    pull_all(args.base, args.token, completed_only=not args.all, out_path=args.out)
+    pull_all(args.base, args.token, completed_only=not args.all,
+             out_path=args.out, page_limit=args.limit)
 
 
 if __name__ == "__main__":

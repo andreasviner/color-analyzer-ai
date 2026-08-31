@@ -1,7 +1,32 @@
 {
-  "current": "1.9",
+  "current": "2.0",
   "note": "Production model version history. The orchestrator (refresh_and_retrain.py) bumps the minor version by 0.1 each retrain (use --major for a +1.0 jump) and appends the new metrics here. v1.0 is the original deployed model (the numbers that were hand-entered on the leaderboard before automated retraining).",
   "entries": [
+    {
+      "version": "2.0",
+      "trained_at": "2026-08-31",
+      "n_rows": 11894,
+      "gender_auc": 0.8,
+      "age_mae": 8.76,
+      "mood_mae": 10.83,
+      "world_n_rows": 453,
+      "world_gender_auc": 0.76,
+      "world_age_mae": 6.59,
+      "world_mood_mae": 9.5,
+      "long_n_rows": 1444,
+      "long_gender_auc": 0.754,
+      "long_age_mae": 6.48,
+      "long_mood_mae": 9.2,
+      "short_ref_gender_auc": 1.0,
+      "short_ref_age_mae": 0.98,
+      "short_ref_mood_mae": 1.4,
+      "pick_acc": 0.56,
+      "pick_auc": 0.763,
+      "pick_leak_gate": 0.263,
+      "pick_long_acc": 0.55,
+      "pick_long_auc": 0.766,
+      "pick_long_leak_gate": 0.263
+    },
     {
       "version": "1.9",
       "trained_at": "2026-07-06",
